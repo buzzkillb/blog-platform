@@ -169,7 +169,7 @@ pub async fn create(
         .bind(current_user.user_id)
         .execute(&state.db)
         .await
-        .ok();
+        .map_err(|e| ApiError::new(format!("Failed to add site member: {}", e)))?;
 
     let site = Site {
         id: row.get("id"),

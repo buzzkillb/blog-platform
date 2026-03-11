@@ -104,8 +104,8 @@ pub async fn view_site(
 <html><head><meta charset="UTF-8"><title>{}</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-</head><body class="bg-gray-50">{}<div class="max-w-4xl mx-auto p-8">{}</div>{}</body></html>"#,
-                name, header_html, main_content, footer_html
+</head><body class="bg-gray-50">{}<div class="max-w-4xl mx-auto p-8">{}{}</div>{}</body></html>"#,
+                name, header_html, main_content, _posts_section, footer_html
             );
 
             make_response(html)
