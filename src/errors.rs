@@ -42,7 +42,11 @@ impl ApiError {
 
 impl axum::response::IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
-        (self.status_code, axum::Json(self.message)).into_response()
+        let body = serde_json::json!({
+            "message": self.message,
+            "status_code": self.status_code.as_u16()
+        });
+        (self.status_code, axum::Json(body)).into_response()
     }
 }
 
