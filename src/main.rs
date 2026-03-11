@@ -13,9 +13,7 @@ pub use state::AppState;
 
 use handlers::{view_blog_at_path, view_page, view_post, view_site};
 
-use axum::{
-    extract::State, http::StatusCode, routing::get, Router,
-};
+use axum::{extract::State, http::StatusCode, routing::get, Router};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use std::net::SocketAddr;
