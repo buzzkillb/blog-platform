@@ -45,6 +45,15 @@ pub async fn register(
             let name_clone = name.clone();
             let token = Uuid::new_v4().to_string();
             
+            sqlx::query(
+                "INSERT INTO auth_tokens (user_id, token, expires_at) VALUES ($1, $2, NOW() + INTERVAL '30 days')"
+            )
+            .bind(id)
+            .bind(&token)
+            .execute(&state.db)
+            .await
+            .ok();
+            
             // Auto-add user to first site if exists
             if let Ok(Some(site_id)) = sqlx::query_scalar::<_, Option<Uuid>>(
                 "SELECT id FROM sites LIMIT 1"
@@ -134,9 +143,32 @@ pub async fn login(
     .flatten();
 
     let token = Uuid::new_v4().to_string();
+    
+    sqlx::query(
+        "INSERT INTO auth_tokens (user_id, token, expires_at) VALUES ($1, $2, NOW() + INTERVAL '30 days')"
+    )
+    .bind(user.id)
+    .bind(&token)
+    .execute(&state.db)
+    .await
+    .ok();
+    
     Ok(Json(crate::LoginResponse { user: user_response, site_id, token }))
 }
 
 pub async fn logout() -> impl IntoResponse {
     (StatusCode::OK, "Logged out")
+}
+
+pub async fn validate_token(state: &AppState, token: &str) -> Result<Uuid, ApiError> {
+    let user_id = sqlx::query_scalar::<_, Option<Uuid>>(
+        "SELECT user_id FROM auth_tokens WHERE token = $1 AND (expires_at IS NULL OR expires_at > NOW())"
+    )
+    .bind(token)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|_| ApiError::new("Invalid token"))?
+    .ok_or_else(|| ApiError::new("Invalid or expired token"))?;
+    
+    Ok(user_id)
 }

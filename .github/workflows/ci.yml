@@ -71,7 +71,7 @@ jobs:
         run: sleep 10
       - name: Test health endpoint
         run: |
-          curl -f http://localhost:8000/health || exit 1
+          curl -f http://localhost:3000/health || exit 1
       - name: Stop services
         run: docker compose down
 

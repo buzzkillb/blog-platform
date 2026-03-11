@@ -320,6 +320,19 @@ async fn run_migrations(db: &sqlx::PgPool) {
     ).execute(db).await.expect("Failed to create users table");
 
     sqlx::query(
+        "CREATE TABLE IF NOT EXISTS auth_tokens (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            token VARCHAR(255) UNIQUE NOT NULL,
+            expires_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )"
+    ).execute(db).await.expect("Failed to create auth_tokens table");
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_auth_tokens_token ON auth_tokens(token)").execute(db).await.ok();
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id)").execute(db).await.ok();
+
+    sqlx::query(
         "CREATE TABLE IF NOT EXISTS site_members (
             site_id UUID REFERENCES sites(id) ON DELETE CASCADE,
             user_id UUID REFERENCES users(id) ON DELETE CASCADE,
