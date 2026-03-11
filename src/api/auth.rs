@@ -37,10 +37,12 @@ pub async fn register(
         Ok((id, email, _, name)) => {
             let user = User {
                 id,
-                email,
-                name,
+                email: email.clone(),
+                name: name.clone(),
                 created_at: chrono::Utc::now(),
             };
+            let email_clone = email.clone();
+            let name_clone = name.clone();
             
             // Auto-add user to first site if exists
             if let Ok(Some(site_id)) = sqlx::query_scalar::<_, Option<Uuid>>(
@@ -58,10 +60,26 @@ pub async fn register(
                 .await
                 .ok();
                 
-                return Ok((StatusCode::CREATED, Json(crate::LoginResponse { user, site_id })));
+                return Ok((StatusCode::CREATED, Json(crate::LoginResponse { 
+                    user: crate::errors::UserResponse { 
+                        id, 
+                        email: email_clone, 
+                        name: name_clone 
+                    }, 
+                    site_id,
+                    token: "".to_string() 
+                })));
             }
             
-            Ok((StatusCode::CREATED, Json(crate::LoginResponse { user, site_id: None })))
+            Ok((StatusCode::CREATED, Json(crate::LoginResponse { 
+                user: crate::errors::UserResponse { 
+                    id, 
+                    email: email_clone, 
+                    name: name_clone 
+                }, 
+                site_id: None,
+                token: "".to_string() 
+            })))
         }
         Err(e) => {
             if e.to_string().contains("duplicate") {
@@ -108,7 +126,15 @@ pub async fn login(
     .ok()
     .flatten();
 
-    Ok(Json(crate::LoginResponse { user, site_id }))
+    Ok(Json(crate::LoginResponse { 
+        user: crate::errors::UserResponse { 
+            id: user.id, 
+            email: user.email, 
+            name: user.name 
+        }, 
+        site_id,
+        token: "".to_string() 
+    }))
 }
 
 pub async fn logout() -> impl IntoResponse {
