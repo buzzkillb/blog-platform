@@ -13,7 +13,16 @@ pub use state::AppState;
 
 use handlers::{view_blog_at_path, view_page, view_post, view_site};
 
-use axum::{extract::State, http::StatusCode, routing::get, Router};
+use axum::{
+    extract::State,
+    http::{HeaderMap, StatusCode},
+    response::IntoResponse,
+    response::Response,
+    routing::get,
+    Router,
+};
+use bytes::Bytes;
+use render::make_error;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use std::net::SocketAddr;
@@ -277,40 +286,44 @@ async fn feed_handler(
 
 async fn output_handler(
     axum::extract::Path((site_id, path)): axum::extract::Path<(Uuid, String)>,
-) -> impl axum::response::IntoResponse {
-    let path = if path == "index.html" {
-        path
-    } else {
-        path.to_string()
+) -> Response {
+    let clean_path = path.replace("..", "");
+    let file_path = format!("output/{}/{}", site_id, clean_path);
+    
+    let canonical = match std::path::Path::new(&file_path).canonicalize() {
+        Ok(p) => p,
+        Err(_) => return make_error(StatusCode::NOT_FOUND, "File not found").into_response(),
     };
-    let file_path = format!("output/{}/{}", site_id, path);
+    
+    if !canonical.starts_with(std::path::Path::new("output")) {
+        return make_error(StatusCode::FORBIDDEN, "Access denied").into_response();
+    }
 
     if let Ok(content) = std::fs::read(&file_path) {
-        let content_type = if path.ends_with(".html") {
+        let content_type = if clean_path.ends_with(".html") {
             "text/html"
-        } else if path.ends_with(".css") {
+        } else if clean_path.ends_with(".css") {
             "text/css"
-        } else if path.ends_with(".js") {
+        } else if clean_path.ends_with(".js") {
             "application/javascript"
-        } else if path.ends_with(".png") {
+        } else if clean_path.ends_with(".png") {
             "image/png"
-        } else if path.ends_with(".jpg") || path.ends_with(".jpeg") {
+        } else if clean_path.ends_with(".jpg") || clean_path.ends_with(".jpeg") {
             "image/jpeg"
         } else {
             "text/plain"
         };
 
-        (
-            StatusCode::OK,
-            [(axum::http::header::CONTENT_TYPE, content_type)],
-            content,
-        )
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::CONTENT_TYPE,
+            content_type.parse().unwrap(),
+        );
+        
+        let body = Bytes::from(content);
+        (StatusCode::OK, headers, body).into_response()
     } else {
-        (
-            StatusCode::NOT_FOUND,
-            [(axum::http::header::CONTENT_TYPE, "text/plain")],
-            "File not found".as_bytes().to_vec(),
-        )
+        make_error(StatusCode::NOT_FOUND, "File not found").into_response()
     }
 }
 

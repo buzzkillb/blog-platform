@@ -87,6 +87,13 @@ pub async fn upload(
         .file_name()
         .ok_or_else(|| ApiError::new("No filename provided"))?
         .to_string();
+    
+    let filename = std::path::Path::new(&filename)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| ApiError::new("Invalid filename"))?;
+    
+    let safe_filename = format!("{}_{}", Uuid::new_v4(), filename);
 
     let content_type = field
         .content_type()
@@ -101,7 +108,7 @@ pub async fn upload(
         .bytes()
         .await
         .map_err(|e| ApiError::new(format!("Failed to read file: {}", e)))?;
-    let file_path = media_dir.join(&filename);
+    let file_path = media_dir.join(&safe_filename);
     std::fs::write(&file_path, &bytes)
         .map_err(|e| ApiError::new(format!("Failed to save file: {}", e)))?;
 
@@ -122,8 +129,8 @@ pub async fn upload(
          RETURNING id, site_id, filename, mime_type, size, url, alt_text, created_at",
     )
     .bind(site_id)
-    .bind(&filename)
-    .bind(&content_type)
+    .bind(filename)
+    .bind(content_type)
     .bind(bytes.len() as i32)
     .bind(format!("/media/{}", filename))
     .fetch_one(&state.db)
