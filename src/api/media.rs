@@ -1,13 +1,13 @@
 use axum::{
-    extract::{State, Path, Multipart},
+    extract::{Multipart, Path, State},
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
-    http::{StatusCode, HeaderMap},
     Json,
 };
 use uuid::Uuid;
 
-use crate::{AppState, ApiError, Media};
 use crate::api::auth::require_auth;
+use crate::{ApiError, AppState, Media};
 
 pub async fn list(
     State(state): State<AppState>,
@@ -23,16 +23,19 @@ pub async fn list(
     .await
     .map_err(|e| ApiError::new(format!("Failed to fetch media: {}", e)))?;
 
-    let media: Vec<Media> = media.into_iter().map(|m| Media {
-        id: m.0,
-        site_id: m.1,
-        filename: m.2,
-        mime_type: m.3,
-        size: m.4,
-        url: m.5,
-        alt_text: m.6,
-        created_at: m.7,
-    }).collect();
+    let media: Vec<Media> = media
+        .into_iter()
+        .map(|m| Media {
+            id: m.0,
+            site_id: m.1,
+            filename: m.2,
+            mime_type: m.3,
+            size: m.4,
+            url: m.5,
+            alt_text: m.6,
+            created_at: m.7,
+        })
+        .collect();
 
     Ok(Json(media))
 }
@@ -70,35 +73,53 @@ pub async fn upload(
     Path(site_id): Path<Uuid>,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, ApiError> {
-    let _current_user = require_auth(State(state.clone()), headers).await.map_err(|e| ApiError::new(e.1))?;
-    
+    let _current_user = require_auth(State(state.clone()), headers)
+        .await
+        .map_err(|e| ApiError::new(e.1))?;
+
     let field = match multipart.next_field().await {
         Ok(Some(f)) => f,
         Ok(None) => return Err(ApiError::new("No file provided")),
         Err(e) => return Err(ApiError::new(format!("Failed to read multipart: {}", e))),
     };
 
-    let filename = field.file_name()
+    let filename = field
+        .file_name()
         .ok_or_else(|| ApiError::new("No filename provided"))?
         .to_string();
 
-    let content_type = field.content_type()
+    let content_type = field
+        .content_type()
         .unwrap_or("application/octet-stream")
         .to_string();
 
     // Save file to disk
     let media_dir = std::path::Path::new("media");
     std::fs::create_dir_all(media_dir).ok();
-    
-    let bytes = field.bytes().await.map_err(|e| ApiError::new(format!("Failed to read file: {}", e)))?;
-    let file_path = media_dir.join(&filename);
-    std::fs::write(&file_path, &bytes).map_err(|e| ApiError::new(format!("Failed to save file: {}", e)))?;
 
-    let result = sqlx::query_as::<_, (
-        Uuid, Uuid, String, Option<String>, Option<i32>, String, Option<String>, chrono::DateTime<chrono::Utc>
-    )>(
+    let bytes = field
+        .bytes()
+        .await
+        .map_err(|e| ApiError::new(format!("Failed to read file: {}", e)))?;
+    let file_path = media_dir.join(&filename);
+    std::fs::write(&file_path, &bytes)
+        .map_err(|e| ApiError::new(format!("Failed to save file: {}", e)))?;
+
+    let result = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            Uuid,
+            String,
+            Option<String>,
+            Option<i32>,
+            String,
+            Option<String>,
+            chrono::DateTime<chrono::Utc>,
+        ),
+    >(
         "INSERT INTO media (site_id, filename, mime_type, size, url) VALUES ($1, $2, $3, $4, $5) 
-         RETURNING id, site_id, filename, mime_type, size, url, alt_text, created_at"
+         RETURNING id, site_id, filename, mime_type, size, url, alt_text, created_at",
     )
     .bind(site_id)
     .bind(&filename)
@@ -109,16 +130,19 @@ pub async fn upload(
     .await
     .map_err(|e| ApiError::new(format!("Failed to save media record: {}", e)))?;
 
-    Ok((StatusCode::CREATED, Json(Media {
-        id: result.0,
-        site_id: result.1,
-        filename: result.2,
-        mime_type: result.3,
-        size: result.4,
-        url: result.5,
-        alt_text: result.6,
-        created_at: result.7,
-    })))
+    Ok((
+        StatusCode::CREATED,
+        Json(Media {
+            id: result.0,
+            site_id: result.1,
+            filename: result.2,
+            mime_type: result.3,
+            size: result.4,
+            url: result.5,
+            alt_text: result.6,
+            created_at: result.7,
+        }),
+    ))
 }
 
 pub async fn delete(
@@ -126,8 +150,10 @@ pub async fn delete(
     headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let _current_user = require_auth(State(state.clone()), headers).await.map_err(|e| ApiError::new(e.1))?;
-    
+    let _current_user = require_auth(State(state.clone()), headers)
+        .await
+        .map_err(|e| ApiError::new(e.1))?;
+
     sqlx::query("DELETE FROM media WHERE site_id = $1 AND id = $2")
         .bind(site_id)
         .bind(id)

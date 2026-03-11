@@ -1,32 +1,27 @@
 mod errors;
+mod handlers;
 mod models;
 mod render;
-mod handlers;
 mod state;
 
 pub use errors::{
-    ApiError, CreateSiteRequest, CreateUserRequest, LoginRequest, LoginResponse,
-    CreatePostRequest, UpdatePostRequest, CreatePageRequest, UpdatePageRequest,
-    UserResponse,
+    ApiError, CreatePageRequest, CreatePostRequest, CreateSiteRequest, CreateUserRequest,
+    LoginRequest, LoginResponse, UpdatePageRequest, UpdatePostRequest, UserResponse,
 };
-pub use models::{Site, User, Post, Page, Media, ContactSubmission};
+pub use models::{ContactSubmission, Media, Page, Post, Site, User};
 pub use state::AppState;
 
-use handlers::{view_site, view_post, view_page, view_blog_at_path};
+use handlers::{view_blog_at_path, view_page, view_post, view_site};
 
-use serde::{Deserialize, Serialize};
 use axum::{
-    extract::State,
-    handler::HandlerWithoutStateExt,
-    http::StatusCode,
-    routing::get,
-    Router,
+    extract::State, handler::HandlerWithoutStateExt, http::StatusCode, routing::get, Router,
 };
+use serde::{Deserialize, Serialize};
+use sqlx::Row;
+use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
-use std::net::SocketAddr;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use sqlx::Row;
 use uuid::Uuid;
 
 pub mod api;
@@ -74,7 +69,7 @@ async fn main() {
     let state = AppState { db };
 
     let static_files = ServeDir::new(".");
-    
+
     let media_files = ServeDir::new("media");
 
     let cors = CorsLayer::new()
@@ -118,14 +113,12 @@ async fn root_handler() -> impl axum::response::IntoResponse {
 }
 
 async fn health_check(State(state): State<AppState>) -> impl axum::response::IntoResponse {
-    match sqlx::query("SELECT 1")
-        .fetch_one(&state.db)
-        .await
-    {
+    match sqlx::query("SELECT 1").fetch_one(&state.db).await {
         Ok(_) => (axum::http::StatusCode::OK, "OK"),
-        Err(_) => {
-            (axum::http::StatusCode::SERVICE_UNAVAILABLE, "Database unavailable")
-        }
+        Err(_) => (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            "Database unavailable",
+        ),
     }
 }
 
@@ -145,10 +138,12 @@ async fn sitemap_handler(
     axum::extract::Path(slug): axum::extract::Path<String>,
     State(state): State<AppState>,
 ) -> impl axum::response::IntoResponse {
-    let site = sqlx::query("SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1")
-        .bind(&slug)
-        .fetch_optional(&state.db)
-        .await;
+    let site = sqlx::query(
+        "SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1",
+    )
+    .bind(&slug)
+    .fetch_optional(&state.db)
+    .await;
 
     match site {
         Ok(Some(row)) => {
@@ -156,20 +151,26 @@ async fn sitemap_handler(
             let name: String = row.get("name");
 
             let posts = sqlx::query_as::<_, (String,)>(
-                "SELECT slug FROM posts WHERE site_id = $1 AND status = 'published'"
+                "SELECT slug FROM posts WHERE site_id = $1 AND status = 'published'",
             )
             .bind(site_id)
             .fetch_all(&state.db)
             .await;
 
             let domain = format!("https://{}.example.com", slug);
-            let mut sitemap = format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+            let mut sitemap = format!(
+                r#"<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-<url><loc>{}</loc><changefreq>daily</changefreq></url>"#, domain);
+<url><loc>{}</loc><changefreq>daily</changefreq></url>"#,
+                domain
+            );
 
             if let Ok(posts) = posts {
                 for (slug,) in posts {
-                    sitemap.push_str(&format!("\n<url><loc>{}/post/{}</loc><changefreq>weekly</changefreq></url>", domain, slug));
+                    sitemap.push_str(&format!(
+                        "\n<url><loc>{}/post/{}</loc><changefreq>weekly</changefreq></url>",
+                        domain, slug
+                    ));
                 }
             }
 
@@ -181,7 +182,11 @@ async fn sitemap_handler(
                 sitemap,
             )
         }
-        _ => (StatusCode::NOT_FOUND, [(axum::http::header::CONTENT_TYPE, "text/plain")], "Site not found".to_string()),
+        _ => (
+            StatusCode::NOT_FOUND,
+            [(axum::http::header::CONTENT_TYPE, "text/plain")],
+            "Site not found".to_string(),
+        ),
     }
 }
 
@@ -189,10 +194,12 @@ async fn feed_handler(
     axum::extract::Path(slug): axum::extract::Path<String>,
     State(state): State<AppState>,
 ) -> impl axum::response::IntoResponse {
-    let site = sqlx::query("SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1")
-        .bind(&slug)
-        .fetch_optional(&state.db)
-        .await;
+    let site = sqlx::query(
+        "SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1",
+    )
+    .bind(&slug)
+    .fetch_optional(&state.db)
+    .await;
 
     match site {
         Ok(Some(row)) => {
@@ -207,12 +214,15 @@ async fn feed_handler(
             .await;
 
             let domain = format!("https://{}.example.com", slug);
-            let mut feed = format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+            let mut feed = format!(
+                r#"<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
 <channel>
 <title>{}</title>
 <link>{}</link>
-<description>{}</description>"#, name, domain, name);
+<description>{}</description>"#,
+                name, domain, name
+            );
 
             if let Ok(posts) = posts {
                 for post in posts {
@@ -220,13 +230,16 @@ async fn feed_handler(
                     let slug = post.1;
                     let excerpt = post.2.unwrap_or_default();
                     let date = post.3.map(|d| d.to_rfc3339()).unwrap_or_default();
-                    feed.push_str(&format!(r#"
+                    feed.push_str(&format!(
+                        r#"
 <item>
 <title>{}</title>
 <link>{}/post/{}</link>
 <description>{}</description>
 <pubDate>{}</pubDate>
-</item>"#, title, domain, slug, excerpt, date));
+</item>"#,
+                        title, domain, slug, excerpt, date
+                    ));
                 }
             }
 
@@ -238,14 +251,22 @@ async fn feed_handler(
                 feed,
             )
         }
-        _ => (StatusCode::NOT_FOUND, [(axum::http::header::CONTENT_TYPE, "text/plain")], "Site not found".to_string()),
+        _ => (
+            StatusCode::NOT_FOUND,
+            [(axum::http::header::CONTENT_TYPE, "text/plain")],
+            "Site not found".to_string(),
+        ),
     }
 }
 
 async fn output_handler(
     axum::extract::Path((site_id, path)): axum::extract::Path<(Uuid, String)>,
 ) -> impl axum::response::IntoResponse {
-    let path = if path == "index.html" { path } else { format!("{}", path) };
+    let path = if path == "index.html" {
+        path
+    } else {
+        format!("{}", path)
+    };
     let file_path = format!("output/{}/{}", site_id, path);
 
     if let Ok(content) = std::fs::read(&file_path) {
@@ -297,17 +318,46 @@ async fn run_migrations(db: &sqlx::PgPool) {
             landing_blocks JSONB DEFAULT '[]',
             created_at TIMESTAMPTZ DEFAULT NOW(),
             settings JSONB DEFAULT '{}'
-        )"
-    ).execute(db).await.expect("Failed to create sites table");
+        )",
+    )
+    .execute(db)
+    .await
+    .expect("Failed to create sites table");
 
-    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS nav_links JSONB DEFAULT '[]'").execute(db).await.ok();
-    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS footer_text VARCHAR(500)").execute(db).await.ok();
-    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS social_links JSONB DEFAULT '{}'").execute(db).await.ok();
-    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50)").execute(db).await.ok();
-    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255)").execute(db).await.ok();
-    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS contact_address VARCHAR(500)").execute(db).await.ok();
-    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS homepage_type VARCHAR(20) DEFAULT 'both'").execute(db).await.ok();
-    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS landing_blocks JSONB DEFAULT '[]'").execute(db).await.ok();
+    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS nav_links JSONB DEFAULT '[]'")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS footer_text VARCHAR(500)")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS social_links JSONB DEFAULT '{}'")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50)")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255)")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS contact_address VARCHAR(500)")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query(
+        "ALTER TABLE sites ADD COLUMN IF NOT EXISTS homepage_type VARCHAR(20) DEFAULT 'both'",
+    )
+    .execute(db)
+    .await
+    .ok();
+    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS landing_blocks JSONB DEFAULT '[]'")
+        .execute(db)
+        .await
+        .ok();
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS users (
@@ -316,8 +366,11 @@ async fn run_migrations(db: &sqlx::PgPool) {
             password_hash VARCHAR(255) NOT NULL,
             name VARCHAR(255),
             created_at TIMESTAMPTZ DEFAULT NOW()
-        )"
-    ).execute(db).await.expect("Failed to create users table");
+        )",
+    )
+    .execute(db)
+    .await
+    .expect("Failed to create users table");
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS auth_tokens (
@@ -326,11 +379,20 @@ async fn run_migrations(db: &sqlx::PgPool) {
             token VARCHAR(255) UNIQUE NOT NULL,
             expires_at TIMESTAMPTZ,
             created_at TIMESTAMPTZ DEFAULT NOW()
-        )"
-    ).execute(db).await.expect("Failed to create auth_tokens table");
+        )",
+    )
+    .execute(db)
+    .await
+    .expect("Failed to create auth_tokens table");
 
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_auth_tokens_token ON auth_tokens(token)").execute(db).await.ok();
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id)").execute(db).await.ok();
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_auth_tokens_token ON auth_tokens(token)")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id)")
+        .execute(db)
+        .await
+        .ok();
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS site_members (
@@ -338,8 +400,11 @@ async fn run_migrations(db: &sqlx::PgPool) {
             user_id UUID REFERENCES users(id) ON DELETE CASCADE,
             role VARCHAR(50) DEFAULT 'editor',
             PRIMARY KEY (site_id, user_id)
-        )"
-    ).execute(db).await.expect("Failed to create site_members table");
+        )",
+    )
+    .execute(db)
+    .await
+    .expect("Failed to create site_members table");
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS posts (
@@ -357,8 +422,11 @@ async fn run_migrations(db: &sqlx::PgPool) {
             updated_at TIMESTAMPTZ DEFAULT NOW(),
             seo JSONB DEFAULT '{}',
             UNIQUE(site_id, slug)
-        )"
-    ).execute(db).await.expect("Failed to create posts table");
+        )",
+    )
+    .execute(db)
+    .await
+    .expect("Failed to create posts table");
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS pages (
@@ -372,8 +440,11 @@ async fn run_migrations(db: &sqlx::PgPool) {
             updated_at TIMESTAMPTZ DEFAULT NOW(),
             seo JSONB DEFAULT '{}',
             UNIQUE(site_id, slug)
-        )"
-    ).execute(db).await.expect("Failed to create pages table");
+        )",
+    )
+    .execute(db)
+    .await
+    .expect("Failed to create pages table");
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS media (
@@ -385,8 +456,11 @@ async fn run_migrations(db: &sqlx::PgPool) {
             url VARCHAR(1000) NOT NULL,
             alt_text VARCHAR(500),
             created_at TIMESTAMPTZ DEFAULT NOW()
-        )"
-    ).execute(db).await.expect("Failed to create media table");
+        )",
+    )
+    .execute(db)
+    .await
+    .expect("Failed to create media table");
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS contact_submissions (
@@ -398,18 +472,35 @@ async fn run_migrations(db: &sqlx::PgPool) {
             honeypot VARCHAR(255) DEFAULT '',
             created_at TIMESTAMPTZ DEFAULT NOW(),
             read BOOLEAN DEFAULT FALSE
-        )"
-    ).execute(db).await.expect("Failed to create contact_submissions table");
+        )",
+    )
+    .execute(db)
+    .await
+    .expect("Failed to create contact_submissions table");
 
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_posts_site_status ON posts(site_id, status)").execute(db).await.ok();
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_posts_published ON posts(site_id, published_at DESC)").execute(db).await.ok();
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_pages_site ON pages(site_id)").execute(db).await.ok();
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_media_site ON media(site_id)").execute(db).await.ok();
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_posts_site_status ON posts(site_id, status)")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_posts_published ON posts(site_id, published_at DESC)",
+    )
+    .execute(db)
+    .await
+    .ok();
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_pages_site ON pages(site_id)")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_media_site ON media(site_id)")
+        .execute(db)
+        .await
+        .ok();
 }
 
 async fn seed_default_pages(db: &sqlx::PgPool) {
     let sites = sqlx::query_as::<_, (Uuid,)>(
-        "SELECT id FROM sites WHERE id NOT IN (SELECT DISTINCT site_id FROM pages)"
+        "SELECT id FROM sites WHERE id NOT IN (SELECT DISTINCT site_id FROM pages)",
     )
     .fetch_all(db)
     .await;
@@ -421,12 +512,12 @@ async fn seed_default_pages(db: &sqlx::PgPool) {
                 let homepage_content = serde_json::json!([
                     {"block_type": "hero", "content": {"title": "Welcome to Our Site", "subtitle": "Your amazing blog starts here", "ctaText": "Read More", "ctaLink": "/blog"}}
                 ]);
-                
+
                 let about_content = serde_json::json!([
                     {"block_type": "heading", "content": {"text": "About Us"}},
                     {"block_type": "paragraph", "content": {"text": "Welcome to our about page! We are a company that does amazing things."}}
                 ]);
-                
+
                 let contact_content = serde_json::json!([
                     {"block_type": "heading", "content": {"text": "Contact Us"}},
                     {"block_type": "paragraph", "content": {"text": "Get in touch with us!"}}
@@ -472,15 +563,19 @@ async fn seed_default_pages(db: &sqlx::PgPool) {
         Err(_) => {}
     }
 
-    sqlx::query("UPDATE sites SET homepage_type = 'both' WHERE homepage_type IS NULL OR homepage_type = ''")
-        .execute(db)
-        .await
-        .ok();
-    
+    sqlx::query(
+        "UPDATE sites SET homepage_type = 'both' WHERE homepage_type IS NULL OR homepage_type = ''",
+    )
+    .execute(db)
+    .await
+    .ok();
+
     let default_nav = serde_json::json!([{"label": "Home", "url": "/"}, {"label": "Blog", "url": "/blog"}, {"label": "About", "url": "/about"}, {"label": "Contact", "url": "/contact"}]);
-    sqlx::query("UPDATE sites SET nav_links = $1 WHERE nav_links IS NULL OR nav_links = '[]'::jsonb")
-        .bind(&default_nav)
-        .execute(db)
-        .await
-        .ok();
+    sqlx::query(
+        "UPDATE sites SET nav_links = $1 WHERE nav_links IS NULL OR nav_links = '[]'::jsonb",
+    )
+    .bind(&default_nav)
+    .execute(db)
+    .await
+    .ok();
 }

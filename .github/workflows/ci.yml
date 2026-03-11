@@ -63,12 +63,29 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+      - name: Create test .env file
+        run: |
+          cat > .env << EOF
+          DOMAIN=localhost
+          POSTGRES_USER=blog
+          POSTGRES_PASSWORD=changeme
+          POSTGRES_DB=blog_platform
+          DATABASE_URL=postgres://blog:changeme@postgres:5432/blog_platform
+          MINIO_ENDPOINT=minio:9000
+          MINIO_BUCKET=blog-media
+          MINIO_ACCESS_KEY=minioadmin
+          MINIO_SECRET_KEY=minioadmin
+          APP_HOST=0.0.0.0
+          APP_PORT=3000
+          RUST_LOG=info
+          SESSION_SECRET=dev-secret-change-in-production-min-32-chars
+          EOF
       - name: Build Docker image
         run: docker build -t blog-platform .
       - name: Start services
         run: docker compose up -d
       - name: Wait for services
-        run: sleep 10
+        run: sleep 15
       - name: Test health endpoint
         run: |
           curl -f http://localhost:3000/health || exit 1

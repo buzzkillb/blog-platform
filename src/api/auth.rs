@@ -1,13 +1,13 @@
 use axum::{
-    extract::{State, rejection::JsonRejection, FromRef},
+    extract::{rejection::JsonRejection, FromRef, State},
+    http::{header, HeaderMap, StatusCode},
     response::IntoResponse,
-    http::{StatusCode, HeaderMap, header},
     Json,
 };
 use bcrypt::{hash, verify, DEFAULT_COST};
 use uuid::Uuid;
 
-use crate::{AppState, ApiError, User, CreateUserRequest, LoginRequest, UserResponse};
+use crate::{ApiError, AppState, CreateUserRequest, LoginRequest, User, UserResponse};
 
 #[derive(Clone)]
 pub struct CurrentUser {
@@ -22,7 +22,12 @@ pub async fn require_auth(
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
-        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing or invalid Authorization header".to_string()))?;
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                "Missing or invalid Authorization header".to_string(),
+            )
+        })?;
 
     let user_id = validate_token(&state, token)
         .await
@@ -66,7 +71,7 @@ pub async fn register(
             let email_clone = email.clone();
             let name_clone = name.clone();
             let token = Uuid::new_v4().to_string();
-            
+
             sqlx::query(
                 "INSERT INTO auth_tokens (user_id, token, expires_at) VALUES ($1, $2, NOW() + INTERVAL '30 days')"
             )
@@ -75,13 +80,12 @@ pub async fn register(
             .execute(&state.db)
             .await
             .ok();
-            
+
             // Auto-add user to first site if exists
-            if let Ok(Some(site_id)) = sqlx::query_scalar::<_, Option<Uuid>>(
-                "SELECT id FROM sites LIMIT 1"
-            )
-            .fetch_optional(&state.db)
-            .await
+            if let Ok(Some(site_id)) =
+                sqlx::query_scalar::<_, Option<Uuid>>("SELECT id FROM sites LIMIT 1")
+                    .fetch_optional(&state.db)
+                    .await
             {
                 sqlx::query(
                     "INSERT INTO site_members (site_id, user_id, role) VALUES ($1, $2, 'admin') ON CONFLICT DO NOTHING"
@@ -91,27 +95,33 @@ pub async fn register(
                 .execute(&state.db)
                 .await
                 .ok();
-                
-                return Ok((StatusCode::CREATED, Json(crate::LoginResponse { 
-                    user: crate::errors::UserResponse { 
-                        id, 
-                        email: email_clone, 
-                        name: name_clone 
-                    }, 
-                    site_id,
-                    token 
-                })));
+
+                return Ok((
+                    StatusCode::CREATED,
+                    Json(crate::LoginResponse {
+                        user: crate::errors::UserResponse {
+                            id,
+                            email: email_clone,
+                            name: name_clone,
+                        },
+                        site_id,
+                        token,
+                    }),
+                ));
             }
-            
-            Ok((StatusCode::CREATED, Json(crate::LoginResponse { 
-                user: crate::errors::UserResponse { 
-                    id, 
-                    email: email_clone, 
-                    name: name_clone 
-                }, 
-                site_id: None,
-                token 
-            })))
+
+            Ok((
+                StatusCode::CREATED,
+                Json(crate::LoginResponse {
+                    user: crate::errors::UserResponse {
+                        id,
+                        email: email_clone,
+                        name: name_clone,
+                    },
+                    site_id: None,
+                    token,
+                }),
+            ))
         }
         Err(e) => {
             if e.to_string().contains("duplicate") {
@@ -127,13 +137,21 @@ pub async fn login(
     State(state): State<AppState>,
     Json(payload): Json<LoginRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let user = sqlx::query_as::<_, (Uuid, String, String, Option<String>, chrono::DateTime<chrono::Utc>)>(
-        "SELECT id, email, password_hash, name, created_at FROM users WHERE email = $1"
-    )
-    .bind(&payload.email)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|_| ApiError::new("Invalid email or password"))?;
+    let user =
+        sqlx::query_as::<
+            _,
+            (
+                Uuid,
+                String,
+                String,
+                Option<String>,
+                chrono::DateTime<chrono::Utc>,
+            ),
+        >("SELECT id, email, password_hash, name, created_at FROM users WHERE email = $1")
+        .bind(&payload.email)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|_| ApiError::new("Invalid email or password"))?;
 
     let valid = verify(&payload.password, &user.2)
         .map_err(|_| ApiError::new("Invalid email or password"))?;
@@ -156,7 +174,7 @@ pub async fn login(
     };
 
     let site_id = sqlx::query_scalar::<_, Option<Uuid>>(
-        "SELECT site_id FROM site_members WHERE user_id = $1 LIMIT 1"
+        "SELECT site_id FROM site_members WHERE user_id = $1 LIMIT 1",
     )
     .bind(user.id)
     .fetch_one(&state.db)
@@ -165,7 +183,7 @@ pub async fn login(
     .flatten();
 
     let token = Uuid::new_v4().to_string();
-    
+
     sqlx::query(
         "INSERT INTO auth_tokens (user_id, token, expires_at) VALUES ($1, $2, NOW() + INTERVAL '30 days')"
     )
@@ -174,8 +192,12 @@ pub async fn login(
     .execute(&state.db)
     .await
     .ok();
-    
-    Ok(Json(crate::LoginResponse { user: user_response, site_id, token }))
+
+    Ok(Json(crate::LoginResponse {
+        user: user_response,
+        site_id,
+        token,
+    }))
 }
 
 pub async fn logout() -> impl IntoResponse {
@@ -191,6 +213,6 @@ pub async fn validate_token(state: &AppState, token: &str) -> Result<Uuid, ApiEr
     .await
     .map_err(|_| ApiError::new("Invalid token"))?
     .ok_or_else(|| ApiError::new("Invalid or expired token"))?;
-    
+
     Ok(user_id)
 }

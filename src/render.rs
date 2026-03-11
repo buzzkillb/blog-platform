@@ -1,14 +1,15 @@
 use crate::models::SiteSettings;
-use uuid::Uuid;
-use axum::http::StatusCode;
 use axum::http::header::HeaderMap;
+use axum::http::StatusCode;
 use sqlx::PgPool;
+use uuid::Uuid;
 
 pub type HtmlResponse = (StatusCode, HeaderMap, String);
 
 pub fn render_nav_links(nav_links: &serde_json::Value, site_path: &str) -> String {
     if let Some(links) = nav_links.as_array() {
-        links.iter()
+        links
+            .iter()
             .map(|link| {
                 let label = link.get("label").and_then(|l| l.as_str()).unwrap_or("");
                 let url = link.get("url").and_then(|u| u.as_str()).unwrap_or("#");
@@ -17,7 +18,10 @@ pub fn render_nav_links(nav_links: &serde_json::Value, site_path: &str) -> Strin
                 } else {
                     url.to_string()
                 };
-                format!("<a href=\"{}\" class=\"text-gray-700 hover:text-blue-600 px-3\">{}</a>", full_url, label)
+                format!(
+                    "<a href=\"{}\" class=\"text-gray-700 hover:text-blue-600 px-3\">{}</a>",
+                    full_url, label
+                )
             })
             .collect::<Vec<_>>()
             .join("")
@@ -60,7 +64,10 @@ pub fn render_contact_info(settings: &SiteSettings) -> String {
         parts.push(settings.contact_phone.clone());
     }
     if !settings.contact_email.is_empty() {
-        parts.push(format!("<a href=\"mailto:{}\">{}</a>", settings.contact_email, settings.contact_email));
+        parts.push(format!(
+            "<a href=\"mailto:{}\">{}</a>",
+            settings.contact_email, settings.contact_email
+        ));
     }
     if !settings.contact_address.is_empty() {
         parts.push(settings.contact_address.clone());
@@ -68,11 +75,7 @@ pub fn render_contact_info(settings: &SiteSettings) -> String {
     parts.join(" | ")
 }
 
-pub fn render_header(
-    settings: &SiteSettings,
-    site_name: &str,
-    slug: &str,
-) -> String {
+pub fn render_header(settings: &SiteSettings, site_name: &str, slug: &str) -> String {
     let site_path = format!("/site/{}", slug);
     let nav_html = render_nav_links(&settings.nav_links, &site_path);
     let logo_img = if !settings.logo_url.is_empty() {
@@ -81,7 +84,8 @@ pub fn render_header(
         String::new()
     };
 
-    format!(r#"
+    format!(
+        r#"
 <header class="bg-white shadow-sm">
     <div class="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
         <div class="flex items-center gap-4">
@@ -89,7 +93,9 @@ pub fn render_header(
         </div>
         <nav class="flex items-center gap-2">{}</nav>
     </div>
-</header>"#, logo_img, site_path, site_name, nav_html)
+</header>"#,
+        logo_img, site_path, site_name, nav_html
+    )
 }
 
 pub fn render_footer(settings: &SiteSettings) -> String {
@@ -97,7 +103,8 @@ pub fn render_footer(settings: &SiteSettings) -> String {
     let contact_html = render_contact_info(settings);
     let has_contact = !contact_html.is_empty();
 
-    format!(r#"
+    format!(
+        r#"
 <footer class="bg-gray-100 mt-16">
     <div class="max-w-4xl mx-auto px-6 py-8">
         <div class="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -106,8 +113,12 @@ pub fn render_footer(settings: &SiteSettings) -> String {
         </div>
         <div class="text-center text-gray-500 text-sm mt-4">{}</div>
     </div>
-</footer>"#, 
-        if has_contact { format!("<div class=\"mb-2\">{}</div>", contact_html) } else { String::new() },
+</footer>"#,
+        if has_contact {
+            format!("<div class=\"mb-2\">{}</div>", contact_html)
+        } else {
+            String::new()
+        },
         social_html,
         settings.footer_text
     )
@@ -119,7 +130,7 @@ pub fn render_blocks(content: &serde_json::Value) -> String {
             .map(|block| {
                 let block_type = block.get("block_type").and_then(|t| t.as_str()).unwrap_or("paragraph");
                 let block_content = block.get("content");
-                
+
                 match block_type {
                     "heading" => {
                         let text = block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or("");
@@ -190,13 +201,19 @@ pub fn render_blocks(content: &serde_json::Value) -> String {
 
 pub fn make_response(html: String) -> HtmlResponse {
     let mut headers = HeaderMap::new();
-    headers.insert(axum::http::header::CONTENT_TYPE, "text/html".parse().unwrap());
+    headers.insert(
+        axum::http::header::CONTENT_TYPE,
+        "text/html".parse().unwrap(),
+    );
     (StatusCode::OK, headers, html)
 }
 
 pub fn make_error(status: StatusCode, message: &str) -> HtmlResponse {
     let mut headers = HeaderMap::new();
-    headers.insert(axum::http::header::CONTENT_TYPE, "text/plain".parse().unwrap());
+    headers.insert(
+        axum::http::header::CONTENT_TYPE,
+        "text/plain".parse().unwrap(),
+    );
     (status, headers, message.to_string())
 }
 
@@ -224,9 +241,9 @@ mod tests {
             {"label": "About", "url": "/about"},
             {"label": "Blog", "url": "/blog"}
         ]);
-        
+
         let result = render_nav_links(&nav_links, "/mysite");
-        
+
         assert!(result.contains("href=\"/mysite/\""));
         assert!(result.contains("Home"));
         assert!(result.contains("href=\"/mysite/about\""));
@@ -254,7 +271,7 @@ mod tests {
         let nav_links = json!([
             {"label": "Google", "url": "https://google.com"}
         ]);
-        
+
         let result = render_nav_links(&nav_links, "/mysite");
         assert!(result.contains("href=\"https://google.com\""));
     }
@@ -266,9 +283,9 @@ mod tests {
             "x": "https://x.com/test",
             "youtube": "https://youtube.com/test"
         });
-        
+
         let result = render_social_links(&social_links);
-        
+
         assert!(result.contains("github.com"));
         assert!(result.contains("fa-github"));
         assert!(result.contains("fa-x-twitter"));
@@ -281,9 +298,9 @@ mod tests {
             "github": "",
             "x": "https://x.com/test"
         });
-        
+
         let result = render_social_links(&social_links);
-        
+
         assert!(!result.contains("github"));
         assert!(result.contains("x.com"));
     }
@@ -306,9 +323,9 @@ mod tests {
             contact_phone: "555-1234".to_string(),
             contact_address: String::new(),
         };
-        
+
         let result = render_contact_info(&settings);
-        
+
         assert!(result.contains("555-1234"));
         assert!(result.contains("test@example.com"));
         assert!(result.contains("mailto:test@example.com"));
@@ -325,7 +342,7 @@ mod tests {
             contact_phone: String::new(),
             contact_address: String::new(),
         };
-        
+
         let result = render_contact_info(&settings);
         assert!(result.is_empty());
     }
@@ -335,9 +352,9 @@ mod tests {
         let blocks = json!([
             {"block_type": "heading", "content": {"text": "Hello World"}}
         ]);
-        
+
         let result = render_blocks(&blocks);
-        
+
         assert!(result.contains("<h2"));
         assert!(result.contains("Hello World"));
         assert!(result.contains("</h2>"));
@@ -348,9 +365,9 @@ mod tests {
         let blocks = json!([
             {"block_type": "paragraph", "content": {"text": "This is a paragraph"}}
         ]);
-        
+
         let result = render_blocks(&blocks);
-        
+
         assert!(result.contains("<p"));
         assert!(result.contains("This is a paragraph"));
         assert!(result.contains("</p>"));
@@ -361,9 +378,9 @@ mod tests {
         let blocks = json!([
             {"block_type": "image", "content": {"url": "https://example.com/img.jpg", "alt": "Test image"}}
         ]);
-        
+
         let result = render_blocks(&blocks);
-        
+
         assert!(result.contains("img.jpg"));
         assert!(result.contains("Test image"));
     }
@@ -373,7 +390,7 @@ mod tests {
         let blocks = json!([
             {"block_type": "image", "content": {"url": "", "alt": "Test"}}
         ]);
-        
+
         let result = render_blocks(&blocks);
         assert!(result.is_empty());
     }
@@ -383,9 +400,9 @@ mod tests {
         let blocks = json!([
             {"block_type": "link", "content": {"text": "Click here", "url": "https://example.com"}}
         ]);
-        
+
         let result = render_blocks(&blocks);
-        
+
         assert!(result.contains("href=\"https://example.com\""));
         assert!(result.contains("Click here"));
     }
@@ -400,9 +417,9 @@ mod tests {
                 "ctaLink": "/signup"
             }}
         ]);
-        
+
         let result = render_blocks(&blocks);
-        
+
         assert!(result.contains("Welcome"));
         assert!(result.contains("Best site ever"));
         assert!(result.contains("Get Started"));
@@ -413,9 +430,9 @@ mod tests {
         let blocks = json!([
             {"block_type": "video", "content": {"url": "https://youtube.com/watch?v=abc123", "caption": "My video"}}
         ]);
-        
+
         let result = render_blocks(&blocks);
-        
+
         assert!(result.contains("youtube.com/embed/abc123"));
         assert!(result.contains("My video"));
     }
@@ -425,9 +442,9 @@ mod tests {
         let blocks = json!([
             {"block_type": "columns", "content": {"left": "Left content", "right": "Right content"}}
         ]);
-        
+
         let result = render_blocks(&blocks);
-        
+
         assert!(result.contains("Left content"));
         assert!(result.contains("Right content"));
         assert!(result.contains("grid-cols-2"));
@@ -438,7 +455,7 @@ mod tests {
         let blocks = json!([
             {"block_type": "unknown_type", "content": {"text": "Should not render"}}
         ]);
-        
+
         let result = render_blocks(&blocks);
         assert!(result.is_empty());
     }
@@ -461,9 +478,9 @@ mod tests {
             contact_phone: String::new(),
             contact_address: String::new(),
         };
-        
+
         let result = render_header(&settings, "My Site", "my-site");
-        
+
         assert!(result.contains("logo.png"));
         assert!(result.contains("My Site"));
         assert!(result.contains("/site/my-site"));
@@ -480,9 +497,9 @@ mod tests {
             contact_phone: String::new(),
             contact_address: String::new(),
         };
-        
+
         let result = render_header(&settings, "My Site", "my-site");
-        
+
         assert!(result.contains("My Site"));
         assert!(result.contains("<header"));
     }
@@ -498,9 +515,9 @@ mod tests {
             contact_phone: String::new(),
             contact_address: String::new(),
         };
-        
+
         let result = render_footer(&settings);
-        
+
         assert!(result.contains("test@example.com"));
         assert!(result.contains("Copyright 2024"));
         assert!(result.contains("<footer"));
@@ -510,18 +527,24 @@ mod tests {
     fn test_make_response() {
         let html = "<html><body>Test</body></html>".to_string();
         let (status, headers, body) = make_response(html);
-        
+
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body, "<html><body>Test</body></html>");
-        assert_eq!(headers.get("content-type").unwrap().to_str().unwrap(), "text/html");
+        assert_eq!(
+            headers.get("content-type").unwrap().to_str().unwrap(),
+            "text/html"
+        );
     }
 
     #[test]
     fn test_make_error() {
         let (status, headers, body) = make_error(StatusCode::NOT_FOUND, "Not found");
-        
+
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert_eq!(body, "Not found");
-        assert_eq!(headers.get("content-type").unwrap().to_str().unwrap(), "text/plain");
+        assert_eq!(
+            headers.get("content-type").unwrap().to_str().unwrap(),
+            "text/plain"
+        );
     }
 }

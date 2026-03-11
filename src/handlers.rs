@@ -1,5 +1,8 @@
 use crate::models::{Page, Post, SiteSettings};
-use crate::render::{get_site_settings, make_error, make_response, render_blocks, render_footer, render_header, HtmlResponse};
+use crate::render::{
+    get_site_settings, make_error, make_response, render_blocks, render_footer, render_header,
+    HtmlResponse,
+};
 use crate::AppState;
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -21,12 +24,18 @@ pub async fn view_site(
         Ok(Some(row)) => {
             let site_id: Uuid = row.get("id");
             let name: String = row.get("name");
-            let description = row.get::<Option<String>, _>("description").unwrap_or_default();
-            let homepage_type: String = row.get::<Option<String>, _>("homepage_type").unwrap_or_else(|| "both".to_string());
-            
+            let description = row
+                .get::<Option<String>, _>("description")
+                .unwrap_or_default();
+            let homepage_type: String = row
+                .get::<Option<String>, _>("homepage_type")
+                .unwrap_or_else(|| "both".to_string());
+
             let settings = match get_site_settings(&state.db, site_id).await {
                 Ok(s) => s,
-                Err(_) => return make_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to load settings"),
+                Err(_) => {
+                    return make_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to load settings")
+                }
             };
 
             let homepage_page = sqlx::query_as::<_, (String, serde_json::Value)>(
@@ -36,8 +45,8 @@ pub async fn view_site(
             .fetch_optional(&state.db)
             .await;
 
-            let show_homepage_page = matches!(homepage_type.as_str(), "landing" | "both") 
-                && homepage_page.is_ok() 
+            let show_homepage_page = matches!(homepage_type.as_str(), "landing" | "both")
+                && homepage_page.is_ok()
                 && homepage_page.as_ref().ok().is_some();
 
             let header_html = render_header(&settings, &name, &slug);
@@ -45,10 +54,15 @@ pub async fn view_site(
             let main_content = if show_homepage_page {
                 if let Ok(Some((page_title, page_content))) = homepage_page {
                     let content_html = render_blocks(&page_content);
-                    format!(r#"
+                    format!(
+                        r#"
 <h1 class="text-4xl font-bold mb-6">{}</h1>
-<div class="prose mb-8">{}</div>"#, page_title, content_html)
-                } else { String::new() }
+<div class="prose mb-8">{}</div>"#,
+                        page_title, content_html
+                    )
+                } else {
+                    String::new()
+                }
             } else {
                 String::new()
             };
@@ -70,21 +84,30 @@ pub async fn view_site(
                             ))
                             .collect::<Vec<_>>()
                             .join("\n");
-                        format!(r#"<h2 class="text-2xl font-bold mb-4">Latest Posts</h2>{}"#, posts_html)
-                    } else { String::new() }
-                } else { String::new() }
+                        format!(
+                            r#"<h2 class="text-2xl font-bold mb-4">Latest Posts</h2>{}"#,
+                            posts_html
+                        )
+                    } else {
+                        String::new()
+                    }
+                } else {
+                    String::new()
+                }
             } else {
                 String::new()
             };
 
             let footer_html = render_footer(&settings);
 
-            let html = format!(r#"<!DOCTYPE html>
+            let html = format!(
+                r#"<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>{}</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head><body class="bg-gray-50">{}<div class="max-w-4xl mx-auto p-8">{}</div>{}</body></html>"#,
-                name, header_html, main_content, footer_html);
+                name, header_html, main_content, footer_html
+            );
 
             make_response(html)
         }
@@ -97,7 +120,7 @@ pub async fn view_post(
     State(state): State<AppState>,
 ) -> HtmlResponse {
     let site_row = sqlx::query(
-        "SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1"
+        "SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1",
     )
     .bind(&slug)
     .fetch_optional(&state.db)
@@ -120,19 +143,30 @@ pub async fn view_post(
                 Ok(Some((title, _slug, content, featured_image))) => {
                     let settings = match get_site_settings(&state.db, site_id).await {
                         Ok(s) => s,
-                        Err(_) => return make_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to load settings"),
+                        Err(_) => {
+                            return make_error(
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                "Failed to load settings",
+                            )
+                        }
                     };
 
                     let header_html = render_header(&settings, &name, &slug);
                     let content_html = render_blocks(&content);
-                    
+
                     let featured_html = if let Some(img) = featured_image {
-                        format!(r#"<img src="{}" class="w-full h-64 object-cover rounded-lg mb-6">"#, img)
-                    } else { String::new() };
+                        format!(
+                            r#"<img src="{}" class="w-full h-64 object-cover rounded-lg mb-6">"#,
+                            img
+                        )
+                    } else {
+                        String::new()
+                    };
 
                     let footer_html = render_footer(&settings);
 
-                    let html = format!(r#"<!DOCTYPE html>
+                    let html = format!(
+                        r#"<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>{}</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -143,7 +177,8 @@ pub async fn view_post(
 {}
 <div class="prose">{}</div>
 </div>{}</body></html>"#,
-                        title, header_html, slug, title, featured_html, content_html, footer_html);
+                        title, header_html, slug, title, featured_html, content_html, footer_html
+                    );
 
                     make_response(html)
                 }
@@ -159,7 +194,7 @@ pub async fn view_page(
     State(state): State<AppState>,
 ) -> HtmlResponse {
     let site_row = sqlx::query(
-        "SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1"
+        "SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1",
     )
     .bind(&slug)
     .fetch_optional(&state.db)
@@ -171,7 +206,7 @@ pub async fn view_page(
             let name: String = row.get("name");
 
             let page = sqlx::query_as::<_, (String, serde_json::Value)>(
-                "SELECT title, content FROM pages WHERE site_id = $1 AND slug = $2"
+                "SELECT title, content FROM pages WHERE site_id = $1 AND slug = $2",
             )
             .bind(site_id)
             .bind(&page_slug)
@@ -182,14 +217,20 @@ pub async fn view_page(
                 Ok(Some((title, content))) => {
                     let settings = match get_site_settings(&state.db, site_id).await {
                         Ok(s) => s,
-                        Err(_) => return make_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to load settings"),
+                        Err(_) => {
+                            return make_error(
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                "Failed to load settings",
+                            )
+                        }
                     };
 
                     let header_html = render_header(&settings, &name, &slug);
                     let content_html = render_blocks(&content);
                     let footer_html = render_footer(&settings);
 
-                    let html = format!(r#"<!DOCTYPE html>
+                    let html = format!(
+                        r#"<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>{}</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -199,7 +240,8 @@ pub async fn view_page(
 <h1 class="text-4xl font-bold mt-4 mb-6">{}</h1>
 <div class="prose">{}</div>
 </div>{}</body></html>"#,
-                        title, header_html, slug, title, content_html, footer_html);
+                        title, header_html, slug, title, content_html, footer_html
+                    );
 
                     make_response(html)
                 }
@@ -215,9 +257,9 @@ pub async fn view_blog_at_path(
     State(state): State<AppState>,
 ) -> HtmlResponse {
     let clean_path = format!("/{}", path.trim_start_matches('/'));
-    
+
     let site_row = sqlx::query(
-        "SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1"
+        "SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1",
     )
     .bind(&slug)
     .fetch_optional(&state.db)
@@ -227,14 +269,14 @@ pub async fn view_blog_at_path(
         Ok(Some(row)) => {
             let site_id: Uuid = row.get("id");
             let name: String = row.get("name");
-            
+
             if clean_path == "/blog" {
                 return view_blog_listing(&state, site_id, &slug, &name).await;
             }
-            
+
             let page_slug = path.trim_start_matches('/');
             let page = sqlx::query_as::<_, (String, serde_json::Value)>(
-                "SELECT title, content FROM pages WHERE site_id = $1 AND slug = $2"
+                "SELECT title, content FROM pages WHERE site_id = $1 AND slug = $2",
             )
             .bind(site_id)
             .bind(page_slug)
@@ -243,24 +285,31 @@ pub async fn view_blog_at_path(
 
             match page {
                 Ok(Some((page_title, page_content))) => {
-                    return view_page_content(&state, site_id, &slug, &name, &page_title, &page_content).await;
+                    return view_page_content(
+                        &state,
+                        site_id,
+                        &slug,
+                        &name,
+                        &page_title,
+                        &page_content,
+                    )
+                    .await;
                 }
                 _ => {
-                    let homepage_type: String = sqlx::query(
-                        "SELECT homepage_type FROM sites WHERE id = $1"
-                    )
-                    .bind(site_id)
-                    .fetch_optional(&state.db)
-                    .await
-                    .ok()
-                    .flatten()
-                    .and_then(|sr| sr.get::<Option<String>, _>("homepage_type"))
-                    .unwrap_or_else(|| "both".to_string());
-                    
+                    let homepage_type: String =
+                        sqlx::query("SELECT homepage_type FROM sites WHERE id = $1")
+                            .bind(site_id)
+                            .fetch_optional(&state.db)
+                            .await
+                            .ok()
+                            .flatten()
+                            .and_then(|sr| sr.get::<Option<String>, _>("homepage_type"))
+                            .unwrap_or_else(|| "both".to_string());
+
                     if clean_path == "/" && homepage_type == "blog" {
                         return view_blog_listing(&state, site_id, &slug, &name).await;
                     }
-                    
+
                     return make_error(StatusCode::NOT_FOUND, "Not found");
                 }
             }
@@ -302,7 +351,8 @@ pub async fn view_blog_listing(
 
     let footer_html = render_footer(&settings);
 
-    let html = format!(r#"<!DOCTYPE html>
+    let html = format!(
+        r#"<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Blog - {}</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -311,7 +361,9 @@ pub async fn view_blog_listing(
 <h1 class="text-4xl font-bold mb-8">Blog</h1>
 {}
 </div>
-{}</body></html>"#, name, header_html, posts_html, footer_html);
+{}</body></html>"#,
+        name, header_html, posts_html, footer_html
+    );
 
     make_response(html)
 }
@@ -333,7 +385,8 @@ pub async fn view_page_content(
     let content_html = render_blocks(page_content);
     let footer_html = render_footer(&settings);
 
-    let html = format!(r#"<!DOCTYPE html>
+    let html = format!(
+        r#"<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>{}</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -343,7 +396,9 @@ pub async fn view_page_content(
 <h1 class="text-4xl font-bold mt-4 mb-6">{}</h1>
 <div class="prose">{}</div>
 </div>
-{}</body></html>"#, page_title, header_html, slug, page_title, content_html, footer_html);
+{}</body></html>"#,
+        page_title, header_html, slug, page_title, content_html, footer_html
+    );
 
     make_response(html)
 }
