@@ -87,12 +87,12 @@ pub async fn upload(
         .file_name()
         .ok_or_else(|| ApiError::new("No filename provided"))?
         .to_string();
-    
+
     let filename = std::path::Path::new(&filename)
         .file_name()
         .and_then(|n| n.to_str())
         .ok_or_else(|| ApiError::new("Invalid filename"))?;
-    
+
     let safe_filename = format!("{}_{}", Uuid::new_v4(), filename);
 
     let content_type = field

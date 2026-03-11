@@ -146,14 +146,12 @@ async fn sitemap_handler(
     State(state): State<AppState>,
 ) -> impl axum::response::IntoResponse {
     let slug = slug.map(|p| p.0);
-    
+
     let site = if let Some(ref s) = slug {
-        sqlx::query(
-            "SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1",
-        )
-        .bind(s)
-        .fetch_optional(&state.db)
-        .await
+        sqlx::query("SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1")
+            .bind(s)
+            .fetch_optional(&state.db)
+            .await
     } else {
         sqlx::query("SELECT id, name FROM sites LIMIT 1")
             .fetch_optional(&state.db)
@@ -172,8 +170,14 @@ async fn sitemap_handler(
             .fetch_all(&state.db)
             .await;
 
-            let domain = slug.map(|s| format!("https://{}.example.com", s))
-                .unwrap_or_else(|| format!("https://{}.example.com", site_name.to_lowercase().replace(' ', "-")));
+            let domain = slug
+                .map(|s| format!("https://{}.example.com", s))
+                .unwrap_or_else(|| {
+                    format!(
+                        "https://{}.example.com",
+                        site_name.to_lowercase().replace(' ', "-")
+                    )
+                });
             let mut sitemap = format!(
                 r#"<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -211,14 +215,12 @@ async fn feed_handler(
     State(state): State<AppState>,
 ) -> impl axum::response::IntoResponse {
     let slug = slug.map(|p| p.0);
-    
+
     let site = if let Some(ref s) = slug {
-        sqlx::query(
-            "SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1",
-        )
-        .bind(s)
-        .fetch_optional(&state.db)
-        .await
+        sqlx::query("SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1")
+            .bind(s)
+            .fetch_optional(&state.db)
+            .await
     } else {
         sqlx::query("SELECT id, name FROM sites LIMIT 1")
             .fetch_optional(&state.db)
@@ -237,8 +239,14 @@ async fn feed_handler(
             .fetch_all(&state.db)
             .await;
 
-            let domain = slug.map(|s| format!("https://{}.example.com", s))
-                .unwrap_or_else(|| format!("https://{}.example.com", site_name.to_lowercase().replace(' ', "-")));
+            let domain = slug
+                .map(|s| format!("https://{}.example.com", s))
+                .unwrap_or_else(|| {
+                    format!(
+                        "https://{}.example.com",
+                        site_name.to_lowercase().replace(' ', "-")
+                    )
+                });
             let mut feed = format!(
                 r#"<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
@@ -289,12 +297,12 @@ async fn output_handler(
 ) -> Response {
     let clean_path = path.replace("..", "");
     let file_path = format!("output/{}/{}", site_id, clean_path);
-    
+
     let canonical = match std::path::Path::new(&file_path).canonicalize() {
         Ok(p) => p,
         Err(_) => return make_error(StatusCode::NOT_FOUND, "File not found").into_response(),
     };
-    
+
     if !canonical.starts_with(std::path::Path::new("output")) {
         return make_error(StatusCode::FORBIDDEN, "Access denied").into_response();
     }
@@ -319,7 +327,7 @@ async fn output_handler(
             axum::http::header::CONTENT_TYPE,
             content_type.parse().unwrap(),
         );
-        
+
         let body = Bytes::from(content);
         (StatusCode::OK, headers, body).into_response()
     } else {
