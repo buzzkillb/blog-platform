@@ -52,7 +52,7 @@ impl axum::response::IntoResponse for ApiError {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateSiteRequest {
-    pub subdomain: String,
+    pub subdomain: Option<String>,
     pub custom_domain: Option<String>,
     pub name: String,
     pub description: Option<String>,

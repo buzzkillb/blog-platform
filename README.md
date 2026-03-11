@@ -1,10 +1,10 @@
 # Blog Platform
 
-Self-hosted, statically generated multi-tenant blog platform built with Rust (Axum).
+Self-hosted, statically generated blog platform built with Rust (Axum).
 
 ## Features
 
-- Multi-tenant: Host multiple blogs from one installation
+- Single-site: One blog per installation
 - Block-based editor with drag-drop reordering
 - Static site generation (fast, secure)
 - Media management via MinIO (S3-compatible)
