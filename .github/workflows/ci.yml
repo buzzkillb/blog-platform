@@ -101,12 +101,22 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit
       - name: Run security audit
-        run: cargo audit
+        run: |
+          # Allow RUSTSEC-2023-0071 (rsa vulnerability in sqlx-mysql, not used - we only use PostgreSQL)
+          echo -e "ignore:\n  - id: RUSTSEC-2023-0071\n    reason: \"sqlx-mysql not used, only PostgreSQL\"" > .cargo/audit.toml
+          cargo audit
 
   outdated:
     name: Check Outdated Dependencies
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-outdated
+        run: cargo install cargo-outdated
+      - name: Check outdated
+        run: cargo outdated --exit-code 1 || true
+        continue-on-error: true
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-outdated
