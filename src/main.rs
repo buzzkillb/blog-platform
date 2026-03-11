@@ -7,6 +7,7 @@ mod state;
 pub use errors::{
     ApiError, CreateSiteRequest, CreateUserRequest, LoginRequest, LoginResponse,
     CreatePostRequest, UpdatePostRequest, CreatePageRequest, UpdatePageRequest,
+    UserResponse,
 };
 pub use models::{Site, User, Post, Page, Media, ContactSubmission};
 pub use state::AppState;
@@ -116,8 +117,16 @@ async fn root_handler() -> impl axum::response::IntoResponse {
     "Blog Platform API - Visit /admin for dashboard"
 }
 
-async fn health_check() -> impl axum::response::IntoResponse {
-    "OK"
+async fn health_check(State(state): State<AppState>) -> impl axum::response::IntoResponse {
+    match sqlx::query("SELECT 1")
+        .fetch_one(&state.db)
+        .await
+    {
+        Ok(_) => (axum::http::StatusCode::OK, "OK"),
+        Err(_) => {
+            (axum::http::StatusCode::SERVICE_UNAVAILABLE, "Database unavailable")
+        }
+    }
 }
 
 async fn admin_handler(

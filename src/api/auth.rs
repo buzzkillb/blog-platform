@@ -7,7 +7,7 @@ use axum::{
 use bcrypt::{hash, verify, DEFAULT_COST};
 use uuid::Uuid;
 
-use crate::{AppState, ApiError, User, CreateUserRequest, LoginRequest};
+use crate::{AppState, ApiError, User, CreateUserRequest, LoginRequest, UserResponse};
 
 pub async fn register(
     State(state): State<AppState>,
@@ -43,6 +43,7 @@ pub async fn register(
             };
             let email_clone = email.clone();
             let name_clone = name.clone();
+            let token = Uuid::new_v4().to_string();
             
             // Auto-add user to first site if exists
             if let Ok(Some(site_id)) = sqlx::query_scalar::<_, Option<Uuid>>(
@@ -67,7 +68,7 @@ pub async fn register(
                         name: name_clone 
                     }, 
                     site_id,
-                    token: "".to_string() 
+                    token 
                 })));
             }
             
@@ -78,7 +79,7 @@ pub async fn register(
                     name: name_clone 
                 }, 
                 site_id: None,
-                token: "".to_string() 
+                token 
             })))
         }
         Err(e) => {
@@ -117,6 +118,12 @@ pub async fn login(
         created_at: user.4,
     };
 
+    let user_response = UserResponse {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+    };
+
     let site_id = sqlx::query_scalar::<_, Option<Uuid>>(
         "SELECT site_id FROM site_members WHERE user_id = $1 LIMIT 1"
     )
@@ -126,15 +133,8 @@ pub async fn login(
     .ok()
     .flatten();
 
-    Ok(Json(crate::LoginResponse { 
-        user: crate::errors::UserResponse { 
-            id: user.id, 
-            email: user.email, 
-            name: user.name 
-        }, 
-        site_id,
-        token: "".to_string() 
-    }))
+    let token = Uuid::new_v4().to_string();
+    Ok(Json(crate::LoginResponse { user: user_response, site_id, token }))
 }
 
 pub async fn logout() -> impl IntoResponse {
