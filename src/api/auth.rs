@@ -1,5 +1,5 @@
 use axum::{
-    extract::{rejection::JsonRejection, FromRef, State},
+    extract::State,
     http::{header, HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
@@ -62,12 +62,6 @@ pub async fn register(
 
     match result {
         Ok((id, email, _, name)) => {
-            let user = User {
-                id,
-                email: email.clone(),
-                name: name.clone(),
-                created_at: chrono::Utc::now(),
-            };
             let email_clone = email.clone();
             let name_clone = name.clone();
             let token = Uuid::new_v4().to_string();

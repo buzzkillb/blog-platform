@@ -14,7 +14,7 @@ pub use state::AppState;
 use handlers::{view_blog_at_path, view_page, view_post, view_site};
 
 use axum::{
-    extract::State, handler::HandlerWithoutStateExt, http::StatusCode, routing::get, Router,
+    extract::State, http::StatusCode, routing::get, Router,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -148,7 +148,6 @@ async fn sitemap_handler(
     match site {
         Ok(Some(row)) => {
             let site_id: Uuid = row.get("id");
-            let name: String = row.get("name");
 
             let posts = sqlx::query_as::<_, (String,)>(
                 "SELECT slug FROM posts WHERE site_id = $1 AND status = 'published'",
@@ -265,7 +264,7 @@ async fn output_handler(
     let path = if path == "index.html" {
         path
     } else {
-        format!("{}", path)
+        path.to_string()
     };
     let file_path = format!("output/{}/{}", site_id, path);
 
@@ -505,62 +504,59 @@ async fn seed_default_pages(db: &sqlx::PgPool) {
     .fetch_all(db)
     .await;
 
-    match sites {
-        Ok(sites) => {
-            let site_count = sites.len();
-            for (site_id,) in sites {
-                let homepage_content = serde_json::json!([
-                    {"block_type": "hero", "content": {"title": "Welcome to Our Site", "subtitle": "Your amazing blog starts here", "ctaText": "Read More", "ctaLink": "/blog"}}
-                ]);
+    if let Ok(sites) = sites {
+        let site_count = sites.len();
+        for (site_id,) in sites {
+            let homepage_content = serde_json::json!([
+                {"block_type": "hero", "content": {"title": "Welcome to Our Site", "subtitle": "Your amazing blog starts here", "ctaText": "Read More", "ctaLink": "/blog"}}
+            ]);
 
-                let about_content = serde_json::json!([
-                    {"block_type": "heading", "content": {"text": "About Us"}},
-                    {"block_type": "paragraph", "content": {"text": "Welcome to our about page! We are a company that does amazing things."}}
-                ]);
+            let about_content = serde_json::json!([
+                {"block_type": "heading", "content": {"text": "About Us"}},
+                {"block_type": "paragraph", "content": {"text": "Welcome to our about page! We are a company that does amazing things."}}
+            ]);
 
-                let contact_content = serde_json::json!([
-                    {"block_type": "heading", "content": {"text": "Contact Us"}},
-                    {"block_type": "paragraph", "content": {"text": "Get in touch with us!"}}
-                ]);
+            let contact_content = serde_json::json!([
+                {"block_type": "heading", "content": {"text": "Contact Us"}},
+                {"block_type": "paragraph", "content": {"text": "Get in touch with us!"}}
+            ]);
 
-                sqlx::query(
-                    "INSERT INTO pages (site_id, title, slug, content, is_homepage) VALUES ($1, $2, $3, $4, $5)"
-                )
-                .bind(site_id)
-                .bind("Home")
-                .bind("home")
-                .bind(&homepage_content)
-                .bind(true)
-                .execute(db)
-                .await.ok();
+            sqlx::query(
+                "INSERT INTO pages (site_id, title, slug, content, is_homepage) VALUES ($1, $2, $3, $4, $5)"
+            )
+            .bind(site_id)
+            .bind("Home")
+            .bind("home")
+            .bind(&homepage_content)
+            .bind(true)
+            .execute(db)
+            .await.ok();
 
-                sqlx::query(
-                    "INSERT INTO pages (site_id, title, slug, content, is_homepage) VALUES ($1, $2, $3, $4, $5)"
-                )
-                .bind(site_id)
-                .bind("About")
-                .bind("about")
-                .bind(&about_content)
-                .bind(false)
-                .execute(db)
-                .await.ok();
+            sqlx::query(
+                "INSERT INTO pages (site_id, title, slug, content, is_homepage) VALUES ($1, $2, $3, $4, $5)"
+            )
+            .bind(site_id)
+            .bind("About")
+            .bind("about")
+            .bind(&about_content)
+            .bind(false)
+            .execute(db)
+            .await.ok();
 
-                sqlx::query(
-                    "INSERT INTO pages (site_id, title, slug, content, is_homepage) VALUES ($1, $2, $3, $4, $5)"
-                )
-                .bind(site_id)
-                .bind("Contact")
-                .bind("contact")
-                .bind(&contact_content)
-                .bind(false)
-                .execute(db)
-                .await.ok();
-            }
-            if site_count > 0 {
-                tracing::info!("Seeded default pages for {} existing sites", site_count);
-            }
+            sqlx::query(
+                "INSERT INTO pages (site_id, title, slug, content, is_homepage) VALUES ($1, $2, $3, $4, $5)"
+            )
+            .bind(site_id)
+            .bind("Contact")
+            .bind("contact")
+            .bind(&contact_content)
+            .bind(false)
+            .execute(db)
+            .await.ok();
         }
-        Err(_) => {}
+        if site_count > 0 {
+            tracing::info!("Seeded default pages for {} existing sites", site_count);
+        }
     }
 
     sqlx::query(

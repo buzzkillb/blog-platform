@@ -1,4 +1,3 @@
-use crate::models::{Page, Post, SiteSettings};
 use crate::render::{
     get_site_settings, make_error, make_response, render_blocks, render_footer, render_header,
     HtmlResponse,
@@ -24,7 +23,7 @@ pub async fn view_site(
         Ok(Some(row)) => {
             let site_id: Uuid = row.get("id");
             let name: String = row.get("name");
-            let description = row
+            let _description = row
                 .get::<Option<String>, _>("description")
                 .unwrap_or_default();
             let homepage_type: String = row
@@ -67,7 +66,7 @@ pub async fn view_site(
                 String::new()
             };
 
-            let posts_section = if matches!(homepage_type.as_str(), "blog" | "both") {
+            let _posts_section = if matches!(homepage_type.as_str(), "blog" | "both") {
                 let posts = sqlx::query_as::<_, (String, String, Option<String>)>(
                     "SELECT title, slug, excerpt FROM posts WHERE site_id = $1 AND status = 'published' ORDER BY published_at DESC LIMIT 5"
                 )
@@ -310,7 +309,7 @@ pub async fn view_blog_at_path(
                         return view_blog_listing(&state, site_id, &slug, &name).await;
                     }
 
-                    return make_error(StatusCode::NOT_FOUND, "Not found");
+                    make_error(StatusCode::NOT_FOUND, "Not found")
                 }
             }
         }

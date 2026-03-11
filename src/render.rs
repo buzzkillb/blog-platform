@@ -143,7 +143,7 @@ pub fn render_blocks(content: &serde_json::Value) -> String {
                     "image" => {
                         let url = block_content.and_then(|c| c.get("url")).and_then(|u| u.as_str()).unwrap_or("");
                         let alt = block_content.and_then(|c| c.get("alt")).and_then(|a| a.as_str()).unwrap_or("");
-                        let caption = block_content.and_then(|c| c.get("caption")).and_then(|c| c.as_str()).unwrap_or("");
+                        let _caption = block_content.and_then(|c| c.get("caption")).and_then(|c| c.as_str()).unwrap_or("");
                         if !url.is_empty() {
                             format!("<figure class=\"my-6\"><img src=\"{}\" alt=\"{}\" class=\"rounded-lg w-full\"></figure>", url, alt)
                         } else { String::new() }
@@ -173,15 +173,15 @@ pub fn render_blocks(content: &serde_json::Value) -> String {
                     }
                     "video" => {
                         let url = block_content.and_then(|c| c.get("url")).and_then(|u| u.as_str()).unwrap_or("");
-                        let caption = block_content.and_then(|c| c.get("caption")).and_then(|c| c.as_str()).unwrap_or("");
+                        let _caption = block_content.and_then(|c| c.get("caption")).and_then(|c| c.as_str()).unwrap_or("");
                         if !url.is_empty() {
                             let embed_url = if url.contains("youtube.com") || url.contains("youtu.be") {
-                                let video_id = url.split("v=").nth(1).or_else(|| url.split('/').last()).unwrap_or("");
+                                let video_id = url.split("v=").nth(1).or_else(|| url.split('/').next_back()).unwrap_or("");
                                 format!("https://youtube.com/embed/{}", video_id)
                             } else {
                                 url.to_string()
                             };
-                            format!(r#"<div class="my-6"><iframe src="{}" class="w-full aspect-video rounded-lg" frameborder="0" allowfullscreen></iframe><p class="text-gray-500 text-sm mt-2">{}</p></div>"#, embed_url, caption)
+                            format!(r#"<div class="my-6"><iframe src="{}" class="w-full aspect-video rounded-lg" frameborder="0" allowfullscreen></iframe><p class="text-gray-500 text-sm mt-2">{}</p></div>"#, embed_url, _caption)
                         } else { String::new() }
                     }
                     "columns" => {
