@@ -131,7 +131,7 @@ async fn admin_handler(
     path: Option<axum::extract::Path<String>>,
 ) -> impl axum::response::IntoResponse {
     let _path = path.map(|p| p.0);
-    match std::fs::read_to_string("admin.html") {
+    match tokio::fs::read_to_string("admin.html").await {
         Ok(html) => (
             StatusCode::OK,
             [(axum::http::header::CONTENT_TYPE, "text/html")],
