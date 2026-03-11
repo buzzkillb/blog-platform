@@ -32,7 +32,7 @@ pub fn render_social_links(social_links: &serde_json::Value) -> String {
                 let url_str = url.as_str()?;
                 if url_str.is_empty() { return None; }
                 let icon = match platform.as_str() {
-                    "x" => "fa-twitter",
+                    "x" => "fa-x-twitter",
                     "facebook" => "fa-facebook", 
                     "instagram" => "fa-instagram",
                     "linkedin" => "fa-linkedin",
@@ -286,7 +286,7 @@ mod tests {
 
         assert!(result.contains("github.com"));
         assert!(result.contains("fa-github"));
-        assert!(result.contains("fa-twitter"));
+        assert!(result.contains("fa-x-twitter"));
         assert!(result.contains("fa-youtube"));
     }
 

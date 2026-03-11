@@ -220,8 +220,14 @@ pub async fn update(
 
     let name = payload.get("name").and_then(|v| v.as_str());
     let description = payload.get("description").and_then(|v| v.as_str());
-    let subdomain = payload.get("subdomain").and_then(|v| v.as_str()).filter(|s| !s.is_empty());
-    let custom_domain = payload.get("custom_domain").and_then(|v| v.as_str()).filter(|s| !s.is_empty());
+    let subdomain = payload
+        .get("subdomain")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty());
+    let custom_domain = payload
+        .get("custom_domain")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty());
     let logo_url = payload.get("logo_url").and_then(|v| v.as_str());
     let theme = payload.get("theme").and_then(|v| v.as_str());
     let nav_links = payload.get("nav_links");

@@ -117,20 +117,28 @@ async fn root_handler(State(state): State<AppState>) -> impl axum::response::Int
     let site = sqlx::query("SELECT id, name, description, homepage_type FROM sites WHERE subdomain IS NULL OR subdomain = '' LIMIT 1")
         .fetch_optional(&state.db)
         .await;
-    
+
     match site {
         Ok(Some(row)) => {
             let site_id: Uuid = row.get("id");
             let name: String = row.get("name");
-            let homepage_type: String = row.get::<Option<String>, _>("homepage_type").unwrap_or_else(|| "both".to_string());
-            
+            let homepage_type: String = row
+                .get::<Option<String>, _>("homepage_type")
+                .unwrap_or_else(|| "both".to_string());
+
             let settings = match render::get_site_settings(&state.db, site_id).await {
                 Ok(s) => s,
-                Err(_) => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Error loading settings").into_response(),
+                Err(_) => {
+                    return (
+                        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                        "Error loading settings",
+                    )
+                        .into_response()
+                }
             };
-            
+
             let header_html = render::render_header(&settings, &name, "");
-            
+
             // Get homepage page
             let homepage_page = sqlx::query_as::<_, (String, serde_json::Value)>(
                 "SELECT title, content FROM pages WHERE site_id = $1 AND is_homepage = true LIMIT 1"
@@ -138,11 +146,11 @@ async fn root_handler(State(state): State<AppState>) -> impl axum::response::Int
             .bind(site_id)
             .fetch_optional(&state.db)
             .await;
-            
+
             let show_homepage_page = matches!(homepage_type.as_str(), "landing" | "both")
                 && homepage_page.is_ok()
                 && homepage_page.as_ref().ok().is_some();
-            
+
             let main_content = if show_homepage_page {
                 if let Ok(Some((page_title, page_content))) = homepage_page {
                     format!("<h1 class=\"text-4xl font-bold mb-6\">{}</h1><div class=\"prose mb-8\">{}</div>", page_title, render::render_blocks(&page_content))
@@ -152,7 +160,7 @@ async fn root_handler(State(state): State<AppState>) -> impl axum::response::Int
             } else {
                 String::new()
             };
-            
+
             let posts_section = if matches!(homepage_type.as_str(), "blog" | "both") {
                 let posts = sqlx::query_as::<_, (String, String, Option<String>)>(
                     "SELECT title, slug, excerpt FROM posts WHERE site_id = $1 AND status = 'published' ORDER BY published_at DESC LIMIT 5"
@@ -160,13 +168,16 @@ async fn root_handler(State(state): State<AppState>) -> impl axum::response::Int
                 .bind(site_id)
                 .fetch_all(&state.db)
                 .await;
-                
+
                 if let Ok(posts) = posts {
                     if !posts.is_empty() {
                         let posts_html: String = posts.iter().map(|p| {
                             format!("<article class=\"mb-4\"><h3 class=\"text-xl font-bold\"><a href=\"/post/{}\" class=\"text-blue-600\">{}</a></h3><p class=\"text-gray-600\">{}</p></article>", p.1, p.0, p.2.as_deref().unwrap_or(""))
                         }).collect();
-                        format!("<h2 class=\"text-2xl font-bold mb-4\">Latest Posts</h2>{}", posts_html)
+                        format!(
+                            "<h2 class=\"text-2xl font-bold mb-4\">Latest Posts</h2>{}",
+                            posts_html
+                        )
                     } else {
                         String::new()
                     }
@@ -176,21 +187,31 @@ async fn root_handler(State(state): State<AppState>) -> impl axum::response::Int
             } else {
                 String::new()
             };
-            
+
             let footer_html = render::render_footer(&settings);
-            
-            let html = format!(r#"<!DOCTYPE html>
+
+            let html = format!(
+                r#"<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>{}</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head><body class="bg-gray-50">{}
 <div class="max-w-4xl mx-auto p-8">{}{}</div>
-{}</body></html>"#, name, header_html, main_content, posts_section, footer_html);
-            
+{}</body></html>"#,
+                name, header_html, main_content, posts_section, footer_html
+            );
+
             axum::response::Html(html).into_response()
         }
-        Ok(None) => axum::response::Html("Blog Platform - No sites configured. Visit /admin to create one.").into_response(),
-        Err(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Error loading site").into_response(),
+        Ok(None) => {
+            axum::response::Html("Blog Platform - No sites configured. Visit /admin to create one.")
+                .into_response()
+        }
+        Err(_) => (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "Error loading site",
+        )
+            .into_response(),
     }
 }
 
@@ -449,10 +470,12 @@ async fn run_migrations(db: &sqlx::PgPool) {
     .await
     .expect("Failed to create sites table");
 
-    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS blog_path VARCHAR(100) DEFAULT '/blog'")
-        .execute(db)
-        .await
-        .ok();
+    sqlx::query(
+        "ALTER TABLE sites ADD COLUMN IF NOT EXISTS blog_path VARCHAR(100) DEFAULT '/blog'",
+    )
+    .execute(db)
+    .await
+    .ok();
 
     sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS nav_links JSONB DEFAULT '[]'")
         .execute(db)
@@ -488,10 +511,12 @@ async fn run_migrations(db: &sqlx::PgPool) {
         .execute(db)
         .await
         .ok();
-    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS blog_path VARCHAR(100) DEFAULT '/blog'")
-        .execute(db)
-        .await
-        .ok();
+    sqlx::query(
+        "ALTER TABLE sites ADD COLUMN IF NOT EXISTS blog_path VARCHAR(100) DEFAULT '/blog'",
+    )
+    .execute(db)
+    .await
+    .ok();
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS users (

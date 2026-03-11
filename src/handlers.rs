@@ -123,12 +123,12 @@ pub async fn view_post(
     let site = sqlx::query("SELECT id, name FROM sites LIMIT 1")
         .fetch_optional(&state.db)
         .await;
-    
+
     match site {
         Ok(Some(row)) => {
             let site_id: Uuid = row.get("id");
             let name: String = row.get("name");
-            
+
             let post = sqlx::query_as::<_, (String, String, serde_json::Value, Option<String>)>(
                 "SELECT title, slug, content, featured_image FROM posts WHERE site_id = $1 AND slug = $2 AND status = 'published' LIMIT 1"
             )
@@ -136,23 +136,31 @@ pub async fn view_post(
             .bind(&post_slug)
             .fetch_optional(&state.db)
             .await;
-            
+
             match post {
                 Ok(Some((title, _slug, content, featured_image))) => {
                     let settings = match get_site_settings(&state.db, site_id).await {
                         Ok(s) => s,
-                        Err(_) => return make_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to load settings"),
+                        Err(_) => {
+                            return make_error(
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                "Failed to load settings",
+                            )
+                        }
                     };
-                    
+
                     let header_html = render_header(&settings, &name, "");
                     let content_html = render_blocks(&content);
                     let featured_html = if let Some(img) = featured_image {
-                        format!(r#"<img src="{}" class="w-full h-64 object-cover rounded-lg mb-6">"#, img)
+                        format!(
+                            r#"<img src="{}" class="w-full h-64 object-cover rounded-lg mb-6">"#,
+                            img
+                        )
                     } else {
                         String::new()
                     };
                     let footer_html = render_footer(&settings);
-                    
+
                     let html = format!(
                         r#"<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>{}</title>
@@ -168,7 +176,7 @@ pub async fn view_post(
 {}</body></html>"#,
                         title, header_html, featured_html, title, content_html, footer_html
                     );
-                    
+
                     make_response(html)
                 }
                 _ => make_error(StatusCode::NOT_FOUND, "Post not found"),
@@ -185,31 +193,36 @@ pub async fn view_page(
     let site = sqlx::query("SELECT id, name FROM sites LIMIT 1")
         .fetch_optional(&state.db)
         .await;
-    
+
     match site {
         Ok(Some(row)) => {
             let site_id: Uuid = row.get("id");
             let name: String = row.get("name");
-            
+
             let page = sqlx::query_as::<_, (String, serde_json::Value)>(
-                "SELECT title, content FROM pages WHERE site_id = $1 AND slug = $2 LIMIT 1"
+                "SELECT title, content FROM pages WHERE site_id = $1 AND slug = $2 LIMIT 1",
             )
             .bind(site_id)
             .bind(&slug)
             .fetch_optional(&state.db)
             .await;
-            
+
             match page {
                 Ok(Some((title, content))) => {
                     let settings = match get_site_settings(&state.db, site_id).await {
                         Ok(s) => s,
-                        Err(_) => return make_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to load settings"),
+                        Err(_) => {
+                            return make_error(
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                "Failed to load settings",
+                            )
+                        }
                     };
-                    
+
                     let header_html = render_header(&settings, &name, "");
                     let content_html = render_blocks(&content);
                     let footer_html = render_footer(&settings);
-                    
+
                     let html = format!(
                         r#"<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>{}</title>
@@ -224,7 +237,7 @@ pub async fn view_page(
 {}{}</body></html>"#,
                         title, header_html, title, content_html, footer_html, ""
                     );
-                    
+
                     make_response(html)
                 }
                 _ => make_error(StatusCode::NOT_FOUND, "Page not found"),
@@ -234,13 +247,11 @@ pub async fn view_page(
     }
 }
 
-pub async fn view_blog(
-    State(state): State<AppState>,
-) -> HtmlResponse {
+pub async fn view_blog(State(state): State<AppState>) -> HtmlResponse {
     let site = sqlx::query("SELECT id, name FROM sites LIMIT 1")
         .fetch_optional(&state.db)
         .await;
-    
+
     match site {
         Ok(Some(row)) => {
             let site_id: Uuid = row.get("id");
@@ -251,19 +262,24 @@ pub async fn view_blog(
     }
 }
 
-async fn view_blog_listing(state: &AppState, site_id: Uuid, _blog_path: &str, name: &str) -> HtmlResponse {
+async fn view_blog_listing(
+    state: &AppState,
+    site_id: Uuid,
+    _blog_path: &str,
+    name: &str,
+) -> HtmlResponse {
     let settings = match get_site_settings(&state.db, site_id).await {
         Ok(s) => s,
         Err(_) => return make_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to load settings"),
     };
-    
+
     let posts = sqlx::query_as::<_, (String, String, Option<String>, chrono::DateTime<chrono::Utc>)>(
         "SELECT title, slug, excerpt, published_at FROM posts WHERE site_id = $1 AND status = 'published' ORDER BY published_at DESC"
     )
     .bind(site_id)
     .fetch_all(&state.db)
     .await;
-    
+
     let posts_html = match posts {
         Ok(rows) => {
             if rows.is_empty() {
@@ -280,10 +296,10 @@ async fn view_blog_listing(state: &AppState, site_id: Uuid, _blog_path: &str, na
         }
         Err(_) => "<p>Failed to load posts.</p>".to_string(),
     };
-    
+
     let header_html = render_header(&settings, name, "");
     let footer_html = render_footer(&settings);
-    
+
     let html = format!(
         r#"<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>{} - Blog</title>
@@ -296,7 +312,7 @@ async fn view_blog_listing(state: &AppState, site_id: Uuid, _blog_path: &str, na
 </div>{}</body></html>"#,
         name, header_html, posts_html, footer_html
     );
-    
+
     make_response(html)
 }
 
@@ -304,20 +320,22 @@ pub async fn view_about(State(state): State<AppState>) -> HtmlResponse {
     let site = sqlx::query("SELECT id, name FROM sites LIMIT 1")
         .fetch_optional(&state.db)
         .await;
-    
+
     match site {
         Ok(Some(row)) => {
             let site_id: Uuid = row.get("id");
             let name: String = row.get("name");
-            
+
             let settings = match get_site_settings(&state.db, site_id).await {
                 Ok(s) => s,
-                Err(_) => return make_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to load settings"),
+                Err(_) => {
+                    return make_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to load settings")
+                }
             };
-            
+
             let header_html = render_header(&settings, &name, "");
             let footer_html = render_footer(&settings);
-            
+
             let html = format!(
                 r#"<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>About - {}</title>
@@ -332,7 +350,7 @@ pub async fn view_about(State(state): State<AppState>) -> HtmlResponse {
 </div>{}</body></html>"#,
                 name, header_html, footer_html
             );
-            
+
             make_response(html)
         }
         _ => make_error(StatusCode::NOT_FOUND, "No site configured"),
@@ -343,20 +361,22 @@ pub async fn view_contact(State(state): State<AppState>) -> HtmlResponse {
     let site = sqlx::query("SELECT id, name FROM sites LIMIT 1")
         .fetch_optional(&state.db)
         .await;
-    
+
     match site {
         Ok(Some(row)) => {
             let site_id: Uuid = row.get("id");
             let name: String = row.get("name");
-            
+
             let settings = match get_site_settings(&state.db, site_id).await {
                 Ok(s) => s,
-                Err(_) => return make_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to load settings"),
+                Err(_) => {
+                    return make_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to load settings")
+                }
             };
-            
+
             let header_html = render_header(&settings, &name, "");
             let footer_html = render_footer(&settings);
-            
+
             let html = format!(
                 r#"<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Contact - {}</title>
@@ -377,7 +397,7 @@ pub async fn view_contact(State(state): State<AppState>) -> HtmlResponse {
 </div>{}</body></html>"#,
                 name, header_html, site_id, footer_html
             );
-            
+
             make_response(html)
         }
         _ => make_error(StatusCode::NOT_FOUND, "No site configured"),
