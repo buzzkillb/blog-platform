@@ -6,7 +6,7 @@ use axum::{
 };
 use uuid::Uuid;
 
-use crate::api::auth::require_auth;
+use crate::api::auth::{require_auth, require_site_member};
 use crate::{ssg, ApiError, AppState, CreatePostRequest, Post, UpdatePostRequest};
 
 pub async fn list(
@@ -89,9 +89,8 @@ pub async fn create(
     Path(site_id): Path<Uuid>,
     Json(payload): Json<CreatePostRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let _current_user = require_auth(State(state.clone()), headers)
-        .await
-        .map_err(|e| ApiError::new(e.1))?;
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
 
     if payload.title.is_empty() {
         return Err(ApiError::new("Title is required"));
@@ -157,9 +156,8 @@ pub async fn update(
     Path((site_id, id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<UpdatePostRequest>,
 ) -> Result<Json<Post>, ApiError> {
-    let _current_user = require_auth(State(state.clone()), headers)
-        .await
-        .map_err(|e| ApiError::new(e.1))?;
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
 
     let title = payload.title.clone();
     let content = payload.content.clone();
@@ -218,9 +216,8 @@ pub async fn delete(
     headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let _current_user = require_auth(State(state.clone()), headers)
-        .await
-        .map_err(|e| ApiError::new(e.1))?;
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
 
     sqlx::query("DELETE FROM posts WHERE site_id = $1 AND id = $2")
         .bind(site_id)
@@ -237,9 +234,8 @@ pub async fn publish(
     headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<Post>, ApiError> {
-    let _current_user = require_auth(State(state.clone()), headers)
-        .await
-        .map_err(|e| ApiError::new(e.1))?;
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
 
     let result = sqlx::query_as::<_, (
         Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value,

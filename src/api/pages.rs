@@ -6,7 +6,7 @@ use axum::{
 };
 use uuid::Uuid;
 
-use crate::api::auth::require_auth;
+use crate::api::auth::{require_auth, require_site_member};
 use crate::{ApiError, AppState, CreatePageRequest, Page, UpdatePageRequest};
 
 pub async fn list(
@@ -99,9 +99,8 @@ pub async fn create(
     Path(site_id): Path<Uuid>,
     Json(payload): Json<CreatePageRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let _current_user = require_auth(State(state.clone()), headers)
-        .await
-        .map_err(|e| ApiError::new(e.1))?;
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
 
     if payload.title.is_empty() {
         return Err(ApiError::new("Title is required"));
@@ -169,9 +168,8 @@ pub async fn update(
     Path((site_id, id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<UpdatePageRequest>,
 ) -> Result<Json<Page>, ApiError> {
-    let _current_user = require_auth(State(state.clone()), headers)
-        .await
-        .map_err(|e| ApiError::new(e.1))?;
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
 
     if payload.is_homepage == Some(true) {
         sqlx::query("UPDATE pages SET is_homepage = false WHERE site_id = $1 AND id != $2")
@@ -238,9 +236,8 @@ pub async fn delete(
     headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let _current_user = require_auth(State(state.clone()), headers)
-        .await
-        .map_err(|e| ApiError::new(e.1))?;
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
 
     sqlx::query("DELETE FROM pages WHERE site_id = $1 AND id = $2")
         .bind(site_id)

@@ -17,23 +17,38 @@ pub struct CurrentUser {
 pub async fn require_auth(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> Result<CurrentUser, (StatusCode, String)> {
+) -> Result<CurrentUser, ApiError> {
     let token = headers
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
-        .ok_or_else(|| {
-            (
-                StatusCode::UNAUTHORIZED,
-                "Missing or invalid Authorization header".to_string(),
-            )
-        })?;
+        .ok_or_else(|| ApiError::new("Missing or invalid Authorization header"))?;
 
     let user_id = validate_token(&state, token)
         .await
-        .map_err(|e| (StatusCode::UNAUTHORIZED, e.message))?;
+        .map_err(|e| ApiError::new(&e.message))?;
 
     Ok(CurrentUser { user_id })
+}
+
+pub async fn require_site_member(
+    state: &AppState,
+    site_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), ApiError> {
+    let member = sqlx::query_scalar::<_, Option<Uuid>>(
+        "SELECT user_id FROM site_members WHERE site_id = $1 AND user_id = $2"
+    )
+    .bind(site_id)
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| ApiError::new("Database error"))?;
+
+    if member.is_none() {
+        return Err(ApiError::new("Not authorized to access this site"));
+    }
+    Ok(())
 }
 
 pub async fn register(
@@ -194,7 +209,23 @@ pub async fn login(
     }))
 }
 
-pub async fn logout() -> impl IntoResponse {
+pub async fn logout(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let token = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "));
+
+    if let Some(token) = token {
+        sqlx::query("DELETE FROM auth_tokens WHERE token = $1")
+            .bind(token)
+            .execute(&state.db)
+            .await
+            .ok();
+    }
+
     (StatusCode::OK, "Logged out")
 }
 

@@ -6,7 +6,7 @@ use axum::{
 };
 use uuid::Uuid;
 
-use crate::api::auth::require_auth;
+use crate::api::auth::{require_auth, require_site_member};
 use crate::{ApiError, AppState, Media};
 
 pub async fn list(
@@ -73,9 +73,8 @@ pub async fn upload(
     Path(site_id): Path<Uuid>,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, ApiError> {
-    let _current_user = require_auth(State(state.clone()), headers)
-        .await
-        .map_err(|e| ApiError::new(e.1))?;
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
 
     let field = match multipart.next_field().await {
         Ok(Some(f)) => f,
@@ -129,10 +128,10 @@ pub async fn upload(
          RETURNING id, site_id, filename, mime_type, size, url, alt_text, created_at",
     )
     .bind(site_id)
-    .bind(filename)
-    .bind(content_type)
+    .bind(&safe_filename)
+    .bind(&content_type)
     .bind(bytes.len() as i32)
-    .bind(format!("/media/{}", filename))
+    .bind(format!("/media/{}", safe_filename))
     .fetch_one(&state.db)
     .await
     .map_err(|e| ApiError::new(format!("Failed to save media record: {}", e)))?;
@@ -157,9 +156,8 @@ pub async fn delete(
     headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let _current_user = require_auth(State(state.clone()), headers)
-        .await
-        .map_err(|e| ApiError::new(e.1))?;
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
 
     sqlx::query("DELETE FROM media WHERE site_id = $1 AND id = $2")
         .bind(site_id)
