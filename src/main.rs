@@ -133,19 +133,28 @@ async fn admin_handler(
 }
 
 async fn sitemap_handler(
-    axum::extract::Path(slug): axum::extract::Path<String>,
+    slug: Option<axum::extract::Path<String>>,
     State(state): State<AppState>,
 ) -> impl axum::response::IntoResponse {
-    let site = sqlx::query(
-        "SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1",
-    )
-    .bind(&slug)
-    .fetch_optional(&state.db)
-    .await;
+    let slug = slug.map(|p| p.0);
+    
+    let site = if let Some(ref s) = slug {
+        sqlx::query(
+            "SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1",
+        )
+        .bind(s)
+        .fetch_optional(&state.db)
+        .await
+    } else {
+        sqlx::query("SELECT id, name FROM sites LIMIT 1")
+            .fetch_optional(&state.db)
+            .await
+    };
 
     match site {
         Ok(Some(row)) => {
             let site_id: Uuid = row.get("id");
+            let site_name: String = row.get("name");
 
             let posts = sqlx::query_as::<_, (String,)>(
                 "SELECT slug FROM posts WHERE site_id = $1 AND status = 'published'",
@@ -154,7 +163,8 @@ async fn sitemap_handler(
             .fetch_all(&state.db)
             .await;
 
-            let domain = format!("https://{}.example.com", slug);
+            let domain = slug.map(|s| format!("https://{}.example.com", s))
+                .unwrap_or_else(|| format!("https://{}.example.com", site_name.to_lowercase().replace(' ', "-")));
             let mut sitemap = format!(
                 r#"<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -188,20 +198,28 @@ async fn sitemap_handler(
 }
 
 async fn feed_handler(
-    axum::extract::Path(slug): axum::extract::Path<String>,
+    slug: Option<axum::extract::Path<String>>,
     State(state): State<AppState>,
 ) -> impl axum::response::IntoResponse {
-    let site = sqlx::query(
-        "SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1",
-    )
-    .bind(&slug)
-    .fetch_optional(&state.db)
-    .await;
+    let slug = slug.map(|p| p.0);
+    
+    let site = if let Some(ref s) = slug {
+        sqlx::query(
+            "SELECT id, name FROM sites WHERE subdomain = $1 OR custom_domain = $1 LIMIT 1",
+        )
+        .bind(s)
+        .fetch_optional(&state.db)
+        .await
+    } else {
+        sqlx::query("SELECT id, name FROM sites LIMIT 1")
+            .fetch_optional(&state.db)
+            .await
+    };
 
     match site {
         Ok(Some(row)) => {
             let site_id: Uuid = row.get("id");
-            let name: String = row.get("name");
+            let site_name: String = row.get("name");
 
             let posts = sqlx::query_as::<_, (String, String, Option<String>, Option<chrono::DateTime<chrono::Utc>>)>(
                 "SELECT title, slug, excerpt, published_at FROM posts WHERE site_id = $1 AND status = 'published' ORDER BY published_at DESC LIMIT 20"
@@ -210,7 +228,8 @@ async fn feed_handler(
             .fetch_all(&state.db)
             .await;
 
-            let domain = format!("https://{}.example.com", slug);
+            let domain = slug.map(|s| format!("https://{}.example.com", s))
+                .unwrap_or_else(|| format!("https://{}.example.com", site_name.to_lowercase().replace(' ', "-")));
             let mut feed = format!(
                 r#"<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
@@ -218,7 +237,7 @@ async fn feed_handler(
 <title>{}</title>
 <link>{}</link>
 <description>{}</description>"#,
-                name, domain, name
+                site_name, domain, site_name
             );
 
             if let Ok(posts) = posts {
