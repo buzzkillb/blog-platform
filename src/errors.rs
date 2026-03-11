@@ -1,3 +1,4 @@
+use axum::http::StatusCode;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -5,19 +6,43 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiError {
     pub message: String,
+    #[serde(skip)]
+    pub status_code: StatusCode,
 }
 
 impl ApiError {
     pub fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
+            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+
+    pub fn unauthorized(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            status_code: StatusCode::UNAUTHORIZED,
+        }
+    }
+
+    pub fn forbidden(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            status_code: StatusCode::FORBIDDEN,
+        }
+    }
+
+    pub fn bad_request(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            status_code: StatusCode::BAD_REQUEST,
         }
     }
 }
 
 impl axum::response::IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
-        axum::Json(self.message).into_response()
+        (self.status_code, axum::Json(self.message)).into_response()
     }
 }
 

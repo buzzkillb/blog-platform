@@ -22,11 +22,11 @@ pub async fn require_auth(
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
-        .ok_or_else(|| ApiError::new("Missing or invalid Authorization header"))?;
+        .ok_or_else(|| ApiError::unauthorized("Missing or invalid Authorization header"))?;
 
     let user_id = validate_token(&state, token)
         .await
-        .map_err(|e| ApiError::new(&e.message))?;
+        .map_err(|e| ApiError::unauthorized(&e.message))?;
 
     Ok(CurrentUser { user_id })
 }
@@ -46,7 +46,7 @@ pub async fn require_site_member(
     .map_err(|_| ApiError::new("Database error"))?;
 
     if member.is_none() {
-        return Err(ApiError::new("Not authorized to access this site"));
+        return Err(ApiError::forbidden("Not authorized to access this site"));
     }
     Ok(())
 }
