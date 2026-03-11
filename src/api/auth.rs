@@ -37,7 +37,7 @@ pub async fn require_site_member(
     user_id: Uuid,
 ) -> Result<(), ApiError> {
     let member = sqlx::query_scalar::<_, Option<Uuid>>(
-        "SELECT user_id FROM site_members WHERE site_id = $1 AND user_id = $2"
+        "SELECT user_id FROM site_members WHERE site_id = $1 AND user_id = $2",
     )
     .bind(site_id)
     .bind(user_id)
@@ -209,10 +209,7 @@ pub async fn login(
     }))
 }
 
-pub async fn logout(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> impl IntoResponse {
+pub async fn logout(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
     let token = headers
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
