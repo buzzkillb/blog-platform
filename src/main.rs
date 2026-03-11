@@ -156,7 +156,7 @@ async fn sitemap_handler(
             let name: String = row.get("name");
 
             let posts = sqlx::query_as::<_, (String,)>(
-                "SELECT slug FROM posts WHERE site_id = $1 AND published = true"
+                "SELECT slug FROM posts WHERE site_id = $1 AND status = 'published'"
             )
             .bind(site_id)
             .fetch_all(&state.db)
@@ -200,7 +200,7 @@ async fn feed_handler(
             let name: String = row.get("name");
 
             let posts = sqlx::query_as::<_, (String, String, Option<String>, Option<chrono::DateTime<chrono::Utc>>)>(
-                "SELECT title, slug, excerpt, published_at FROM posts WHERE site_id = $1 AND published = true ORDER BY published_at DESC LIMIT 20"
+                "SELECT title, slug, excerpt, published_at FROM posts WHERE site_id = $1 AND status = 'published' ORDER BY published_at DESC LIMIT 20"
             )
             .bind(site_id)
             .fetch_all(&state.db)

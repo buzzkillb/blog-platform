@@ -55,7 +55,7 @@ pub async fn view_site(
 
             let posts_section = if matches!(homepage_type.as_str(), "blog" | "both") {
                 let posts = sqlx::query_as::<_, (String, String, Option<String>)>(
-                    "SELECT title, slug, excerpt FROM posts WHERE site_id = $1 AND published = true ORDER BY published_at DESC LIMIT 5"
+                    "SELECT title, slug, excerpt FROM posts WHERE site_id = $1 AND status = 'published' ORDER BY published_at DESC LIMIT 5"
                 )
                 .bind(site_id)
                 .fetch_all(&state.db)
@@ -109,7 +109,7 @@ pub async fn view_post(
             let name: String = row.get("name");
 
             let post = sqlx::query_as::<_, (String, String, serde_json::Value, Option<String>)>(
-                "SELECT title, slug, content, featured_image FROM posts WHERE site_id = $1 AND slug = $2 AND published = true LIMIT 1"
+                "SELECT title, slug, content, featured_image FROM posts WHERE site_id = $1 AND slug = $2 AND status = 'published' LIMIT 1"
             )
             .bind(site_id)
             .bind(&post_slug)
@@ -283,7 +283,7 @@ pub async fn view_blog_listing(
     let header_html = render_header(&settings, name, slug);
 
     let posts = sqlx::query_as::<_, (String, String, Option<String>)>(
-        "SELECT title, slug, excerpt FROM posts WHERE site_id = $1 AND published = true ORDER BY published_at DESC"
+        "SELECT title, slug, excerpt FROM posts WHERE site_id = $1 AND status = 'published' ORDER BY published_at DESC"
     )
     .bind(site_id)
     .fetch_all(&state.db)
