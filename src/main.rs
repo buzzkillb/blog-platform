@@ -128,8 +128,9 @@ async fn health_check(State(state): State<AppState>) -> impl axum::response::Int
 }
 
 async fn admin_handler(
-    axum::extract::Path(_path): axum::extract::Path<String>,
+    path: Option<axum::extract::Path<String>>,
 ) -> impl axum::response::IntoResponse {
+    let _path = path.map(|p| p.0);
     match std::fs::read_to_string("admin.html") {
         Ok(html) => (
             StatusCode::OK,
