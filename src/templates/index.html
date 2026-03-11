@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="prose">
+    <h1>{{ site_name }}</h1>
+    {% if site_description %}
+    <p class="lead">{{ site_description }}</p>
+    {% endif %}
+</div>
+
+<div class="post-grid">
+    {% for post in posts %}
+    <article class="post-card">
+        {% if post.featured_image %}
+        <a href="/{{ post.slug }}.html">
+            <img src="{{ post.featured_image }}" alt="{{ post.title }}">
+        </a>
+        {% endif %}
+        <div class="post-card-content">
+            <h2><a href="/{{ post.slug }}.html">{{ post.title }}</a></h2>
+            <time class="date">{{ post.published_at }}</time>
+            {% if post.excerpt %}
+            <p class="excerpt">{{ post.excerpt }}</p>
+            {% endif %}
+        </div>
+    </article>
+    {% endfor %}
+</div>
+
+{% if posts | length == 0 %}
+<div class="prose">
+    <p>No posts yet.</p>
+</div>
+{% endif %}
+{% endblock %}

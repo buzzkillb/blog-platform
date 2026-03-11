@@ -1,0 +1,30 @@
+# Build
+/target
+debug
+release
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+server.log
+
+# Media/Output (can be regenerated)
+media/
+output/
+
+# Database
+*.sqlite
+*.db

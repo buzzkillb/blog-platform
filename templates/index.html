@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{{ site_name }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50">
+    <header class="bg-white shadow-sm">
+        <div class="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                {% if logo_url %}<img src="{{ logo_url }}" class="h-10 w-auto">{% endif %}<a href="/" class="text-xl font-bold text-gray-800">{{ site_name }}</a>
+            </div>
+            <nav class="flex items-center gap-2">
+                {% if nav_links %}{% for link in nav_links %}<a href="{{ link.url }}" class="text-gray-700 hover:text-blue-600 px-3">{{ link.label }}</a>{% endfor %}{% endif %}
+            </nav>
+        </div>
+    </header>
+    <div class="max-w-4xl mx-auto p-8">
+        <h1 class="text-4xl font-bold mb-2">{{ site_name }}</h1>
+        {% if site_description %}
+        <p class="text-gray-600 mb-8">{{ site_description }}</p>
+        {% endif %}
+        
+        {% for post in posts %}
+        <article class="mb-8">
+            <h2 class="text-2xl font-bold">
+                <a href="/{{ post.slug }}.html" class="text-blue-600">{{ post.title }}</a>
+            </h2>
+            <time class="text-gray-500 text-sm">{{ post.published_at }}</time>
+            {% if post.excerpt %}
+            <p class="text-gray-600 mt-2">{{ post.excerpt }}</p>
+            {% endif %}
+        </article>
+        {% endfor %}
+        
+        {% if posts | length == 0 %}
+        <p class="text-gray-500">No posts yet.</p>
+        {% endif %}
+    </div>
+    <footer class="bg-gray-100 mt-16">
+        <div class="max-w-4xl mx-auto px-6 py-8">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="text-gray-600 text-sm">
+                    {% if contact_phone or contact_email or contact_address %}
+                    <div class="mb-2">
+                        {% if contact_phone %}{{ contact_phone }}{% endif %}
+                        {% if contact_phone and contact_email %} | {% endif %}
+                        {% if contact_email %}<a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% endif %}
+                        {% if (contact_phone or contact_email) and contact_address %} | {% endif %}
+                        {% if contact_address %}{{ contact_address }}{% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="flex gap-4">
+                    {% if social_links.github %}<a href="{{ social_links.github }}" target="_blank" class="text-gray-500 hover:text-gray-700"><i class="fab fa-github"></i></a>{% endif %}
+                    {% if social_links.x %}<a href="{{ social_links.x }}" target="_blank" class="text-gray-500 hover:text-gray-700"><i class="fab fa-x-twitter"></i></a>{% endif %}
+                    {% if social_links.facebook %}<a href="{{ social_links.facebook }}" target="_blank" class="text-gray-500 hover:text-gray-700"><i class="fab fa-facebook"></i></a>{% endif %}
+                    {% if social_links.instagram %}<a href="{{ social_links.instagram }}" target="_blank" class="text-gray-500 hover:text-gray-700"><i class="fab fa-instagram"></i></a>{% endif %}
+                    {% if social_links.linkedin %}<a href="{{ social_links.linkedin }}" target="_blank" class="text-gray-500 hover:text-gray-700"><i class="fab fa-linkedin"></i></a>{% endif %}
+                    {% if social_links.youtube %}<a href="{{ social_links.youtube }}" target="_blank" class="text-gray-500 hover:text-gray-700"><i class="fab fa-youtube"></i></a>{% endif %}
+                    {% if social_links.tiktok %}<a href="{{ social_links.tiktok }}" target="_blank" class="text-gray-500 hover:text-gray-700"><i class="fab fa-tiktok"></i></a>{% endif %}
+                </div>
+            </div>
+            {% if footer_text %}
+            <div class="text-center text-gray-500 text-sm mt-4">{{ footer_text }}</div>
+            {% endif %}
+        </div>
+    </footer>
+</body>
+</html>
