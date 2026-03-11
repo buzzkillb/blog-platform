@@ -245,8 +245,8 @@ pub async fn update(
         "UPDATE sites SET 
             name = COALESCE($2, name), 
             description = COALESCE($3, description), 
-            subdomain = $4,
-            custom_domain = $5,
+            subdomain = COALESCE($4, subdomain),
+            custom_domain = COALESCE($5, custom_domain),
             logo_url = COALESCE($6, logo_url), 
             theme = COALESCE($7, theme),
             nav_links = COALESCE($8, nav_links),

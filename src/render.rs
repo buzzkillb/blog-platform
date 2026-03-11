@@ -42,7 +42,7 @@ pub fn render_social_links(social_links: &serde_json::Value) -> String {
                     _ => "fa-link"
                 };
                 Some(format!(
-                    "<a href=\"{}\" target=\"_blank\" class=\"text-gray-500 hover:text-gray-700\"><i class=\"fab {}\"></i></a>",
+                    "<a href=\"{}\" target=\"_blank\" class=\"text-gray-500 hover:text-gray-700\"><i class=\"fa-brands {}\"></i></a>",
                     url_str, icon
                 ))
             })
