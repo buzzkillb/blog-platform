@@ -1,5 +1,5 @@
 # Build stage
-FROM rust:debian-bookworm-slim AS builder
+FROM rust:latest AS builder
 
 WORKDIR /app
 
@@ -15,7 +15,7 @@ COPY admin.html ./
 RUN cargo build --release
 
 # Final stage
-FROM debian:bookworm-slim
+FROM debian:bookworm
 
 RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
 
