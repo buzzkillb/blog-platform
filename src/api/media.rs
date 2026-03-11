@@ -11,8 +11,12 @@ use crate::{ApiError, AppState, Media};
 
 pub async fn list(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(site_id): Path<Uuid>,
 ) -> Result<Json<Vec<Media>>, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
+
     let media = sqlx::query_as::<_, (
         Uuid, Uuid, String, Option<String>, Option<i32>, String, Option<String>, chrono::DateTime<chrono::Utc>
     )>(
@@ -42,8 +46,12 @@ pub async fn list(
 
 pub async fn get(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<Media>, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
+
     let media = sqlx::query_as::<_, (
         Uuid, Uuid, String, Option<String>, Option<i32>, String, Option<String>, chrono::DateTime<chrono::Utc>
     )>(

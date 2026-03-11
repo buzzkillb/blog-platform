@@ -10,10 +10,16 @@ use uuid::Uuid;
 use crate::api::auth::{require_auth, require_site_member};
 use crate::{ApiError, AppState, ContactSubmission, CreateSiteRequest, Site};
 
-pub async fn list(State(state): State<AppState>) -> Result<Json<Vec<Site>>, ApiError> {
+pub async fn list(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<Site>>, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+
     let rows = sqlx::query(
-        "SELECT id, subdomain, custom_domain, name, description, logo_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at FROM sites ORDER BY created_at DESC"
+        "SELECT id, subdomain, custom_domain, name, description, logo_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at FROM sites WHERE id IN (SELECT site_id FROM site_members WHERE user_id = $1) ORDER BY created_at DESC"
     )
+    .bind(current_user.user_id)
     .fetch_all(&state.db)
     .await
     .map_err(|e| ApiError::new(format!("Failed to fetch sites: {}", e)))?;
@@ -47,8 +53,12 @@ pub async fn list(State(state): State<AppState>) -> Result<Json<Vec<Site>>, ApiE
 
 pub async fn get(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Site>, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, id, current_user.user_id).await?;
+
     let row = sqlx::query(
         "SELECT id, subdomain, custom_domain, name, description, logo_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at FROM sites WHERE id = $1"
     )

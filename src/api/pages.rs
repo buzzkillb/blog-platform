@@ -11,8 +11,12 @@ use crate::{ApiError, AppState, CreatePageRequest, Page, UpdatePageRequest};
 
 pub async fn list(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(site_id): Path<Uuid>,
 ) -> Result<Json<Vec<Page>>, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
+
     let pages = sqlx::query_as::<
         _,
         (
@@ -55,8 +59,12 @@ pub async fn list(
 
 pub async fn get(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<Page>, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
+
     let page = sqlx::query_as::<
         _,
         (

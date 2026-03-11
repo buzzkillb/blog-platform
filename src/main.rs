@@ -126,13 +126,18 @@ async fn health_check(State(state): State<AppState>) -> impl axum::response::Int
 async fn admin_handler(
     axum::extract::Path(_path): axum::extract::Path<String>,
 ) -> impl axum::response::IntoResponse {
-    let html = std::fs::read_to_string("admin.html")
-        .unwrap_or_else(|_| "Admin panel not found".to_string());
-    (
-        StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/html")],
-        html,
-    )
+    match std::fs::read_to_string("admin.html") {
+        Ok(html) => (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, "text/html")],
+            html,
+        ),
+        Err(_) => (
+            StatusCode::NOT_FOUND,
+            [(axum::http::header::CONTENT_TYPE, "text/plain")],
+            "Admin panel not found".to_string(),
+        ),
+    }
 }
 
 #[allow(dead_code)]

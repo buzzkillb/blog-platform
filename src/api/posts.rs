@@ -11,8 +11,12 @@ use crate::{ssg, ApiError, AppState, CreatePostRequest, Post, UpdatePostRequest}
 
 pub async fn list(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(site_id): Path<Uuid>,
 ) -> Result<Json<Vec<Post>>, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
+
     let posts = sqlx::query_as::<_, (
         Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value,
         Option<String>, Option<String>, String, Option<chrono::DateTime<chrono::Utc>>,
@@ -50,8 +54,12 @@ pub async fn list(
 
 pub async fn get(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<Post>, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
+
     let post = sqlx::query_as::<_, (
         Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value,
         Option<String>, Option<String>, String, Option<chrono::DateTime<chrono::Utc>>,
