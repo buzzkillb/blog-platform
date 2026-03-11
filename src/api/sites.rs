@@ -191,9 +191,12 @@ pub async fn create(
 
 pub async fn update(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<Json<Site>, ApiError> {
+    let _current_user = require_auth(State(state.clone()), headers).await.map_err(|e| ApiError::new(e.1))?;
+    
     let name = payload.get("name").and_then(|v| v.as_str());
     let description = payload.get("description").and_then(|v| v.as_str());
     let logo_url = payload.get("logo_url").and_then(|v| v.as_str());
@@ -271,8 +274,11 @@ pub async fn update(
 
 pub async fn delete(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let _current_user = require_auth(State(state.clone()), headers).await.map_err(|e| ApiError::new(e.1))?;
+    
     sqlx::query("DELETE FROM sites WHERE id = $1")
         .bind(id)
         .execute(&state.db)
@@ -312,8 +318,11 @@ pub async fn submit_contact(
 
 pub async fn list_contact_submissions(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(site_id): Path<Uuid>,
 ) -> Result<Json<Vec<ContactSubmission>>, ApiError> {
+    let _current_user = require_auth(State(state.clone()), headers).await.map_err(|e| ApiError::new(e.1))?;
+    
     let submissions = sqlx::query_as::<_, (
         Uuid, Uuid, String, String, String, chrono::DateTime<chrono::Utc>, bool
     )>(

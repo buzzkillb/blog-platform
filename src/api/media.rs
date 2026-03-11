@@ -123,8 +123,11 @@ pub async fn upload(
 
 pub async fn delete(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let _current_user = require_auth(State(state.clone()), headers).await.map_err(|e| ApiError::new(e.1))?;
+    
     sqlx::query("DELETE FROM media WHERE site_id = $1 AND id = $2")
         .bind(site_id)
         .bind(id)

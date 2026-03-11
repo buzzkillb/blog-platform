@@ -147,9 +147,12 @@ pub async fn create(
 
 pub async fn update(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<UpdatePostRequest>,
 ) -> Result<Json<Post>, ApiError> {
+    let _current_user = require_auth(State(state.clone()), headers).await.map_err(|e| ApiError::new(e.1))?;
+    
     let title = payload.title.clone();
     let content = payload.content.clone();
     let excerpt = payload.excerpt.clone();
@@ -204,8 +207,11 @@ pub async fn update(
 
 pub async fn delete(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let _current_user = require_auth(State(state.clone()), headers).await.map_err(|e| ApiError::new(e.1))?;
+    
     sqlx::query("DELETE FROM posts WHERE site_id = $1 AND id = $2")
         .bind(site_id)
         .bind(id)
@@ -218,8 +224,11 @@ pub async fn delete(
 
 pub async fn publish(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<Post>, ApiError> {
+    let _current_user = require_auth(State(state.clone()), headers).await.map_err(|e| ApiError::new(e.1))?;
+    
     let result = sqlx::query_as::<_, (
         Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value, 
         Option<String>, Option<String>, String, Option<chrono::DateTime<chrono::Utc>>,

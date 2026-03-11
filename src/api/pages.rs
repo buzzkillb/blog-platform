@@ -139,9 +139,12 @@ pub async fn create(
 
 pub async fn update(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<UpdatePageRequest>,
 ) -> Result<Json<Page>, ApiError> {
+    let _current_user = require_auth(State(state.clone()), headers).await.map_err(|e| ApiError::new(e.1))?;
+    
     if payload.is_homepage == Some(true) {
         sqlx::query("UPDATE pages SET is_homepage = false WHERE site_id = $1 AND id != $2")
             .bind(site_id)
@@ -194,8 +197,11 @@ pub async fn update(
 
 pub async fn delete(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let _current_user = require_auth(State(state.clone()), headers).await.map_err(|e| ApiError::new(e.1))?;
+    
     sqlx::query("DELETE FROM pages WHERE site_id = $1 AND id = $2")
         .bind(site_id)
         .bind(id)
