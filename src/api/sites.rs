@@ -1,13 +1,14 @@
 use axum::{
     extract::{State, Path},
     response::IntoResponse,
-    http::StatusCode,
+    http::{StatusCode, HeaderMap},
     Json,
 };
 use uuid::Uuid;
 use sqlx::Row;
 
 use crate::{AppState, ApiError, Site, ContactSubmission, CreateSiteRequest};
+use crate::api::auth::require_auth;
 
 pub async fn list(
     State(state): State<AppState>,
@@ -84,8 +85,11 @@ pub async fn get(
 
 pub async fn create(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<CreateSiteRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let _current_user = require_auth(State(state.clone()), headers).await.map_err(|e| ApiError::new(e.1))?;
+    
     if payload.name.is_empty() {
         return Err(ApiError::new("Site name is required"));
     }

@@ -1,13 +1,35 @@
 use axum::{
-    extract::State,
+    extract::{State, rejection::JsonRejection, FromRef},
     response::IntoResponse,
-    http::StatusCode,
+    http::{StatusCode, HeaderMap, header},
     Json,
 };
 use bcrypt::{hash, verify, DEFAULT_COST};
 use uuid::Uuid;
 
 use crate::{AppState, ApiError, User, CreateUserRequest, LoginRequest, UserResponse};
+
+#[derive(Clone)]
+pub struct CurrentUser {
+    pub user_id: Uuid,
+}
+
+pub async fn require_auth(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<CurrentUser, (StatusCode, String)> {
+    let token = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing or invalid Authorization header".to_string()))?;
+
+    let user_id = validate_token(&state, token)
+        .await
+        .map_err(|e| (StatusCode::UNAUTHORIZED, e.message))?;
+
+    Ok(CurrentUser { user_id })
+}
 
 pub async fn register(
     State(state): State<AppState>,

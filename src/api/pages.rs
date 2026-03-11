@@ -1,12 +1,13 @@
 use axum::{
     extract::{State, Path},
     response::IntoResponse,
-    http::StatusCode,
+    http::{StatusCode, HeaderMap},
     Json,
 };
 use uuid::Uuid;
 
 use crate::{AppState, ApiError, Page, CreatePageRequest, UpdatePageRequest};
+use crate::api::auth::require_auth;
 
 pub async fn list(
     State(state): State<AppState>,
@@ -71,9 +72,12 @@ pub async fn get(
 
 pub async fn create(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(site_id): Path<Uuid>,
     Json(payload): Json<CreatePageRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let _current_user = require_auth(State(state.clone()), headers).await.map_err(|e| ApiError::new(e.1))?;
+    
     if payload.title.is_empty() {
         return Err(ApiError::new("Title is required"));
     }

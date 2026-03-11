@@ -1,12 +1,13 @@
 use axum::{
     extract::{State, Path, Multipart},
     response::IntoResponse,
-    http::StatusCode,
+    http::{StatusCode, HeaderMap},
     Json,
 };
 use uuid::Uuid;
 
 use crate::{AppState, ApiError, Media};
+use crate::api::auth::require_auth;
 
 pub async fn list(
     State(state): State<AppState>,
@@ -65,9 +66,12 @@ pub async fn get(
 
 pub async fn upload(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(site_id): Path<Uuid>,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, ApiError> {
+    let _current_user = require_auth(State(state.clone()), headers).await.map_err(|e| ApiError::new(e.1))?;
+    
     let field = match multipart.next_field().await {
         Ok(Some(f)) => f,
         Ok(None) => return Err(ApiError::new("No file provided")),
