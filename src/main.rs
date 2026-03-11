@@ -93,6 +93,7 @@ async fn main() {
         .route("/feed.xml", get(feed_handler))
         .route("/site/{slug}", get(handlers::view_site))
         .route("/site/{slug}/post/{post_slug}", get(handlers::view_post))
+        .route("/site/{slug}/page/{page_slug}", get(handlers::view_page))
         .route("/site/{slug}/{*path}", get(view_blog_at_path))
         .route("/output/{site_id}/{*path}", get(output_handler))
         .nest_service("/static", static_files.clone())
@@ -309,7 +310,11 @@ async fn output_handler(
         Err(_) => return make_error(StatusCode::NOT_FOUND, "File not found").into_response(),
     };
 
-    if !canonical.starts_with(std::path::Path::new("output")) {
+    let output_dir = std::env::current_dir()
+        .map(|p| p.join("output").canonicalize().unwrap_or_default())
+        .unwrap_or_else(|_| std::path::PathBuf::from("output"));
+
+    if !canonical.starts_with(&output_dir) {
         return make_error(StatusCode::FORBIDDEN, "Access denied").into_response();
     }
 
