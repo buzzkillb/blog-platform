@@ -1,65 +1,39 @@
 # Blog Platform
 
-A self-hosted, statically generated multi-tenant blog platform built with Rust (Axum).
+Self-hosted, statically generated multi-tenant blog platform built with Rust (Axum).
 
 ## Features
 
-- **Multi-tenant**: Host multiple blogs/sites from a single installation
-- **Block-based editor**: WYSIWYG editor with drag-drop reordering
-- **Block types**: Hero, Text, Image, Link, Video, Columns
-- **Static site generation**: Fast, secure static HTML output
-- **Media management**: Upload images via MinIO (S3-compatible)
-- **Contact forms**: Built-in contact form with submissions
-- **Default pages**: Home, About, Contact pages auto-created
-- **Homepage types**: Blog, Landing Page, or Both
-- **Navigation**: Configurable nav links (Home always, Blog/About/Contact toggleable)
-- **Social links**: X, Facebook, Instagram, LinkedIn, YouTube, GitHub, TikTok
-- **SEO optimized**: JSON-LD schemas, sitemaps, RSS feeds
-- **Dark mode**: Beautiful dark-themed admin dashboard
-- **Docker-ready**: Easy deployment with Docker Compose + Traefik
+- Multi-tenant: Host multiple blogs from one installation
+- Block-based editor with drag-drop reordering
+- Static site generation (fast, secure)
+- Media management via MinIO (S3-compatible)
+- Contact forms with submissions
+- Auto-created pages: Home, About, Contact
+- Configurable navigation and social links
+- SEO: JSON-LD schemas, sitemaps, RSS feeds
+- Dark-themed admin dashboard
+- Docker Compose + Traefik deployment
 
 ## Quick Start
 
 ### Prerequisites
-
 - Docker & Docker Compose
 
 ### Setup
 
-1. Clone the repository:
-
 ```bash
 git clone https://github.com/buzzkillb/blog-platform.git
 cd blog-platform
-```
-
-2. Copy environment template and configure:
-
-```bash
 cp .env.example .env
 ```
 
-3. Generate a secure session secret:
-
-```bash
-# macOS
-openssl rand -base64 32
-
-# Linux
-openssl rand -base64 32
-```
-
-4. Start the services:
-
+Start services:
 ```bash
 docker-compose up -d
 ```
 
-5. Access the admin dashboard:
-
-```
-http://localhost:3000/admin
-```
+Access admin: http://localhost:3000/admin
 
 ### First-time Setup
 
@@ -67,39 +41,32 @@ http://localhost:3000/admin
 2. Add posts and pages
 3. Click "Publish" to generate static files
 
-## Architecture
-
-| Component | Technology |
-|-----------|------------|
-| Backend | Axum (Rust) |
-| Frontend | Vanilla JS |
-| Database | PostgreSQL |
-| Storage | MinIO (S3-compatible) |
-| Reverse Proxy | Traefik (with Cloudflare DNS challenge) |
-| Static Generation | minijinja |
-
 ## Environment Variables
 
-### Required (must set in .env)
+### Required
 
 | Variable | Description |
 |----------|-------------|
 | DOMAIN | Your domain (e.g., yourdomain.com) |
 | CF_API_EMAIL | Cloudflare email |
-| CF_API_KEY | Cloudflare API key (for automatic HTTPS) |
-| ACME_EMAIL | Email for Let's Encrypt certificates |
+| CF_API_KEY | Cloudflare API key |
+| ACME_EMAIL | Email for Let's Encrypt |
 | SESSION_SECRET | Random 32+ character string |
 
-### Database
+Generate a session secret:
+```bash
+openssl rand -base64 32
+```
+
+### Database (defaults work for dev)
 
 | Variable | Default |
 |----------|---------|
 | POSTGRES_USER | blog |
 | POSTGRES_PASSWORD | changeme |
 | POSTGRES_DB | blog_platform |
-| DATABASE_URL | postgres://blog:changeme@postgres:5432/blog_platform |
 
-### MinIO
+### MinIO (defaults work for dev)
 
 | Variable | Default |
 |----------|---------|
@@ -114,50 +81,18 @@ http://localhost:3000/admin
 |----------|---------|
 | APP_HOST | 0.0.0.0 |
 | APP_PORT | 3000 |
-| RUST_LOG | info |
 
-## Production Deployment
+## Production
 
-1. Set required values in `.env`:
-   - `DOMAIN` - your domain
-   - `CF_API_EMAIL` - Cloudflare email
-   - `CF_API_KEY` - Cloudflare API key (needs DNS edit permission)
-   - `SESSION_SECRET` - Generate a random 32+ character string
-
-2. Update DNS:
-   - Point your domain A record to your server IP
-   - Create necessary records (@, www, etc.)
-
-3. Start services:
-
-```bash
-docker-compose up -d
-```
-
-4. Traefik will automatically:
-   - Detect your domain
-   - Verify ownership via Cloudflare DNS
-   - Get SSL certificate from Let's Encrypt
-   - Force HTTPS
+1. Set required values in `.env`
+2. Point your domain A record to your server IP
+3. Run `docker-compose up -d`
+4. Traefik auto-configures HTTPS via Cloudflare DNS
 
 ## Development
 
 ```bash
-# Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Run locally (requires PostgreSQL)
 cargo run
 ```
 
-## Security Notes
-
-- Passwords hashed with bcrypt (cost factor 12)
-- Contact forms include honeypot spam protection
-- Only ports 80/443 exposed via Traefik
-- Use strong SESSION_SECRET in production
-- Keep dependencies updated
-
-## License
-
-MIT
+Requires PostgreSQL running locally.
