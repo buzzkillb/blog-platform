@@ -211,3 +211,317 @@ pub async fn get_site_settings(db: &PgPool, site_id: Uuid) -> Result<SiteSetting
 
     Ok(SiteSettings::from_row(&row))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_render_nav_links_with_valid_links() {
+        let nav_links = json!([
+            {"label": "Home", "url": "/"},
+            {"label": "About", "url": "/about"},
+            {"label": "Blog", "url": "/blog"}
+        ]);
+        
+        let result = render_nav_links(&nav_links, "/mysite");
+        
+        assert!(result.contains("href=\"/mysite/\""));
+        assert!(result.contains("Home"));
+        assert!(result.contains("href=\"/mysite/about\""));
+        assert!(result.contains("About"));
+        assert!(result.contains("href=\"/mysite/blog\""));
+        assert!(result.contains("Blog"));
+    }
+
+    #[test]
+    fn test_render_nav_links_empty_array() {
+        let nav_links = json!([]);
+        let result = render_nav_links(&nav_links, "/mysite");
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_render_nav_links_null() {
+        let nav_links = serde_json::Value::Null;
+        let result = render_nav_links(&nav_links, "/mysite");
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_render_nav_links_external_url() {
+        let nav_links = json!([
+            {"label": "Google", "url": "https://google.com"}
+        ]);
+        
+        let result = render_nav_links(&nav_links, "/mysite");
+        assert!(result.contains("href=\"https://google.com\""));
+    }
+
+    #[test]
+    fn test_render_social_links_valid() {
+        let social_links = json!({
+            "github": "https://github.com/test",
+            "x": "https://x.com/test",
+            "youtube": "https://youtube.com/test"
+        });
+        
+        let result = render_social_links(&social_links);
+        
+        assert!(result.contains("github.com"));
+        assert!(result.contains("fa-github"));
+        assert!(result.contains("fa-x-twitter"));
+        assert!(result.contains("fa-youtube"));
+    }
+
+    #[test]
+    fn test_render_social_links_empty_values() {
+        let social_links = json!({
+            "github": "",
+            "x": "https://x.com/test"
+        });
+        
+        let result = render_social_links(&social_links);
+        
+        assert!(!result.contains("github"));
+        assert!(result.contains("x.com"));
+    }
+
+    #[test]
+    fn test_render_social_links_null() {
+        let social_links = serde_json::Value::Null;
+        let result = render_social_links(&social_links);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_render_contact_info_email_and_phone() {
+        let settings = SiteSettings {
+            logo_url: String::new(),
+            nav_links: serde_json::Value::Null,
+            footer_text: String::new(),
+            social_links: serde_json::Value::Null,
+            contact_email: "test@example.com".to_string(),
+            contact_phone: "555-1234".to_string(),
+            contact_address: String::new(),
+        };
+        
+        let result = render_contact_info(&settings);
+        
+        assert!(result.contains("555-1234"));
+        assert!(result.contains("test@example.com"));
+        assert!(result.contains("mailto:test@example.com"));
+    }
+
+    #[test]
+    fn test_render_contact_info_all_empty() {
+        let settings = SiteSettings {
+            logo_url: String::new(),
+            nav_links: serde_json::Value::Null,
+            footer_text: String::new(),
+            social_links: serde_json::Value::Null,
+            contact_email: String::new(),
+            contact_phone: String::new(),
+            contact_address: String::new(),
+        };
+        
+        let result = render_contact_info(&settings);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_render_blocks_heading() {
+        let blocks = json!([
+            {"block_type": "heading", "content": {"text": "Hello World"}}
+        ]);
+        
+        let result = render_blocks(&blocks);
+        
+        assert!(result.contains("<h2"));
+        assert!(result.contains("Hello World"));
+        assert!(result.contains("</h2>"));
+    }
+
+    #[test]
+    fn test_render_blocks_paragraph() {
+        let blocks = json!([
+            {"block_type": "paragraph", "content": {"text": "This is a paragraph"}}
+        ]);
+        
+        let result = render_blocks(&blocks);
+        
+        assert!(result.contains("<p"));
+        assert!(result.contains("This is a paragraph"));
+        assert!(result.contains("</p>"));
+    }
+
+    #[test]
+    fn test_render_blocks_image() {
+        let blocks = json!([
+            {"block_type": "image", "content": {"url": "https://example.com/img.jpg", "alt": "Test image"}}
+        ]);
+        
+        let result = render_blocks(&blocks);
+        
+        assert!(result.contains("img.jpg"));
+        assert!(result.contains("Test image"));
+    }
+
+    #[test]
+    fn test_render_blocks_image_empty_url() {
+        let blocks = json!([
+            {"block_type": "image", "content": {"url": "", "alt": "Test"}}
+        ]);
+        
+        let result = render_blocks(&blocks);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_render_blocks_link() {
+        let blocks = json!([
+            {"block_type": "link", "content": {"text": "Click here", "url": "https://example.com"}}
+        ]);
+        
+        let result = render_blocks(&blocks);
+        
+        assert!(result.contains("href=\"https://example.com\""));
+        assert!(result.contains("Click here"));
+    }
+
+    #[test]
+    fn test_render_blocks_hero() {
+        let blocks = json!([
+            {"block_type": "hero", "content": {
+                "title": "Welcome",
+                "subtitle": "Best site ever",
+                "ctaText": "Get Started",
+                "ctaLink": "/signup"
+            }}
+        ]);
+        
+        let result = render_blocks(&blocks);
+        
+        assert!(result.contains("Welcome"));
+        assert!(result.contains("Best site ever"));
+        assert!(result.contains("Get Started"));
+    }
+
+    #[test]
+    fn test_render_blocks_video_youtube() {
+        let blocks = json!([
+            {"block_type": "video", "content": {"url": "https://youtube.com/watch?v=abc123", "caption": "My video"}}
+        ]);
+        
+        let result = render_blocks(&blocks);
+        
+        assert!(result.contains("youtube.com/embed/abc123"));
+        assert!(result.contains("My video"));
+    }
+
+    #[test]
+    fn test_render_blocks_columns() {
+        let blocks = json!([
+            {"block_type": "columns", "content": {"left": "Left content", "right": "Right content"}}
+        ]);
+        
+        let result = render_blocks(&blocks);
+        
+        assert!(result.contains("Left content"));
+        assert!(result.contains("Right content"));
+        assert!(result.contains("grid-cols-2"));
+    }
+
+    #[test]
+    fn test_render_blocks_unknown_type() {
+        let blocks = json!([
+            {"block_type": "unknown_type", "content": {"text": "Should not render"}}
+        ]);
+        
+        let result = render_blocks(&blocks);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_render_blocks_null_content() {
+        let blocks = serde_json::Value::Null;
+        let result = render_blocks(&blocks);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_render_header_with_logo() {
+        let settings = SiteSettings {
+            logo_url: "https://example.com/logo.png".to_string(),
+            nav_links: serde_json::Value::Null,
+            footer_text: String::new(),
+            social_links: serde_json::Value::Null,
+            contact_email: String::new(),
+            contact_phone: String::new(),
+            contact_address: String::new(),
+        };
+        
+        let result = render_header(&settings, "My Site", "my-site");
+        
+        assert!(result.contains("logo.png"));
+        assert!(result.contains("My Site"));
+        assert!(result.contains("/site/my-site"));
+    }
+
+    #[test]
+    fn test_render_header_without_logo() {
+        let settings = SiteSettings {
+            logo_url: String::new(),
+            nav_links: serde_json::Value::Null,
+            footer_text: String::new(),
+            social_links: serde_json::Value::Null,
+            contact_email: String::new(),
+            contact_phone: String::new(),
+            contact_address: String::new(),
+        };
+        
+        let result = render_header(&settings, "My Site", "my-site");
+        
+        assert!(result.contains("My Site"));
+        assert!(result.contains("<header"));
+    }
+
+    #[test]
+    fn test_render_footer_with_contact() {
+        let settings = SiteSettings {
+            logo_url: String::new(),
+            nav_links: serde_json::Value::Null,
+            footer_text: "Copyright 2024".to_string(),
+            social_links: serde_json::Value::Null,
+            contact_email: "test@example.com".to_string(),
+            contact_phone: String::new(),
+            contact_address: String::new(),
+        };
+        
+        let result = render_footer(&settings);
+        
+        assert!(result.contains("test@example.com"));
+        assert!(result.contains("Copyright 2024"));
+        assert!(result.contains("<footer"));
+    }
+
+    #[test]
+    fn test_make_response() {
+        let html = "<html><body>Test</body></html>".to_string();
+        let (status, headers, body) = make_response(html);
+        
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body, "<html><body>Test</body></html>");
+        assert_eq!(headers.get("content-type").unwrap().to_str().unwrap(), "text/html");
+    }
+
+    #[test]
+    fn test_make_error() {
+        let (status, headers, body) = make_error(StatusCode::NOT_FOUND, "Not found");
+        
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(body, "Not found");
+        assert_eq!(headers.get("content-type").unwrap().to_str().unwrap(), "text/plain");
+    }
+}
