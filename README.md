@@ -29,7 +29,7 @@ A self-hosted, statically generated multi-tenant blog platform built with Rust (
 1. Clone the repository:
 
 ```bash
-git clone git@github.com:yourusername/blog-platform.git
+git clone https://github.com/buzzkillb/blog-platform.git
 cd blog-platform
 ```
 
@@ -39,7 +39,15 @@ cd blog-platform
 cp .env.example .env
 ```
 
-3. Edit `.env` with your settings (see Environment Variables below)
+3. Generate a secure session secret:
+
+```bash
+# macOS
+openssl rand -base64 32
+
+# Linux
+openssl rand -base64 32
+```
 
 4. Start the services:
 

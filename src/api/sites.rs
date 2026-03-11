@@ -1,20 +1,25 @@
 use axum::{
-    extract::{State, Path},
+    extract::{Path, State},
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
-    http::StatusCode,
     Json,
 };
-use uuid::Uuid;
 use sqlx::Row;
+use uuid::Uuid;
 
-use crate::{AppState, ApiError, Site, ContactSubmission, CreateSiteRequest};
+use crate::api::auth::{require_auth, require_site_member};
+use crate::{ApiError, AppState, ContactSubmission, CreateSiteRequest, Site};
 
 pub async fn list(
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<Vec<Site>>, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+
     let rows = sqlx::query(
-        "SELECT id, subdomain, custom_domain, name, description, logo_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at FROM sites ORDER BY created_at DESC"
+        "SELECT id, subdomain, custom_domain, name, description, logo_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at FROM sites WHERE id IN (SELECT site_id FROM site_members WHERE user_id = $1) ORDER BY created_at DESC"
     )
+    .bind(current_user.user_id)
     .fetch_all(&state.db)
     .await
     .map_err(|e| ApiError::new(format!("Failed to fetch sites: {}", e)))?;
@@ -48,8 +53,12 @@ pub async fn list(
 
 pub async fn get(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Site>, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, id, current_user.user_id).await?;
+
     let row = sqlx::query(
         "SELECT id, subdomain, custom_domain, name, description, logo_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at FROM sites WHERE id = $1"
     )
@@ -84,8 +93,11 @@ pub async fn get(
 
 pub async fn create(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<CreateSiteRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+
     if payload.name.is_empty() {
         return Err(ApiError::new("Site name is required"));
     }
@@ -111,12 +123,12 @@ pub async fn create(
     let homepage_content = serde_json::json!([
         {"block_type": "hero", "content": {"title": format!("Welcome to {}", site_name), "subtitle": "Your amazing blog starts here", "ctaText": "Read More", "ctaLink": "/blog"}}
     ]);
-    
+
     let about_content = serde_json::json!([
         {"block_type": "heading", "content": {"text": "About Us"}},
         {"block_type": "paragraph", "content": {"text": "Welcome to our about page! We are a company that does amazing things."}}
     ]);
-    
+
     let contact_content = serde_json::json!([
         {"block_type": "heading", "content": {"text": "Contact Us"}},
         {"block_type": "paragraph", "content": {"text": "Get in touch with us!"}}
@@ -161,6 +173,14 @@ pub async fn create(
     .await
     .map_err(|e| ApiError::new(format!("Failed to create contact page: {}", e)))?;
 
+    // Add creator as admin member of the site
+    sqlx::query("INSERT INTO site_members (site_id, user_id, role) VALUES ($1, $2, 'admin')")
+        .bind(site_id)
+        .bind(current_user.user_id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| ApiError::new(format!("Failed to add site member: {}", e)))?;
+
     let site = Site {
         id: row.get("id"),
         subdomain: row.get("subdomain"),
@@ -187,9 +207,13 @@ pub async fn create(
 
 pub async fn update(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<Json<Site>, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, id, current_user.user_id).await?;
+
     let name = payload.get("name").and_then(|v| v.as_str());
     let description = payload.get("description").and_then(|v| v.as_str());
     let logo_url = payload.get("logo_url").and_then(|v| v.as_str());
@@ -267,8 +291,12 @@ pub async fn update(
 
 pub async fn delete(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, id, current_user.user_id).await?;
+
     sqlx::query("DELETE FROM sites WHERE id = $1")
         .bind(id)
         .execute(&state.db)
@@ -308,8 +336,12 @@ pub async fn submit_contact(
 
 pub async fn list_contact_submissions(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(site_id): Path<Uuid>,
 ) -> Result<Json<Vec<ContactSubmission>>, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
+
     let submissions = sqlx::query_as::<_, (
         Uuid, Uuid, String, String, String, chrono::DateTime<chrono::Utc>, bool
     )>(
@@ -320,8 +352,9 @@ pub async fn list_contact_submissions(
     .await
     .map_err(|e| ApiError::new(format!("Failed to fetch submissions: {}", e)))?;
 
-    let submissions: Vec<ContactSubmission> = submissions.into_iter().map(|s| {
-        ContactSubmission {
+    let submissions: Vec<ContactSubmission> = submissions
+        .into_iter()
+        .map(|s| ContactSubmission {
             id: s.0,
             site_id: s.1,
             name: s.2,
@@ -329,8 +362,8 @@ pub async fn list_contact_submissions(
             message: s.4,
             created_at: s.5,
             read: s.6,
-        }
-    }).collect();
+        })
+        .collect();
 
     Ok(Json(submissions))
 }

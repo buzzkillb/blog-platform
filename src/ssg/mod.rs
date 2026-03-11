@@ -1,8 +1,11 @@
-use minijinja::{Environment, context};
-use uuid::Uuid;
+use minijinja::{context, Environment};
 use sqlx::Row;
+use uuid::Uuid;
 
-pub async fn build_site(db: &sqlx::PgPool, site_id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub async fn build_site(
+    db: &sqlx::PgPool,
+    site_id: Uuid,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let site_row = sqlx::query(
         "SELECT id, subdomain, custom_domain, name, description, logo_url, theme, settings, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address FROM sites WHERE id = $1"
     )
@@ -16,11 +19,19 @@ pub async fn build_site(db: &sqlx::PgPool, site_id: Uuid) -> Result<(), Box<dyn 
     let site_name: String = site_row.get("name");
     let site_description: Option<String> = site_row.get("description");
     let logo_url: Option<String> = site_row.get("logo_url");
-    let _theme: String = site_row.get::<Option<String>, _>("theme").unwrap_or_default();
-    let _settings: serde_json::Value = site_row.get::<Option<serde_json::Value>, _>("settings").unwrap_or(serde_json::json!({}));
-    let nav_links: serde_json::Value = site_row.get::<Option<serde_json::Value>, _>("nav_links").unwrap_or(serde_json::json!([]));
+    let _theme: String = site_row
+        .get::<Option<String>, _>("theme")
+        .unwrap_or_default();
+    let _settings: serde_json::Value = site_row
+        .get::<Option<serde_json::Value>, _>("settings")
+        .unwrap_or(serde_json::json!({}));
+    let nav_links: serde_json::Value = site_row
+        .get::<Option<serde_json::Value>, _>("nav_links")
+        .unwrap_or(serde_json::json!([]));
     let footer_text: Option<String> = site_row.get("footer_text");
-    let social_links: serde_json::Value = site_row.get::<Option<serde_json::Value>, _>("social_links").unwrap_or(serde_json::json!({}));
+    let social_links: serde_json::Value = site_row
+        .get::<Option<serde_json::Value>, _>("social_links")
+        .unwrap_or(serde_json::json!({}));
     let contact_phone: Option<String> = site_row.get("contact_phone");
     let contact_email: Option<String> = site_row.get("contact_email");
     let contact_address: Option<String> = site_row.get("contact_address");
@@ -34,21 +45,19 @@ pub async fn build_site(db: &sqlx::PgPool, site_id: Uuid) -> Result<(), Box<dyn 
     .fetch_all(db)
     .await?;
 
-    let pages = sqlx::query_as::<_, (
-        String, String, serde_json::Value, bool
-    )>(
-        "SELECT title, slug, content, is_homepage FROM pages WHERE site_id = $1"
+    let pages = sqlx::query_as::<_, (String, String, serde_json::Value, bool)>(
+        "SELECT title, slug, content, is_homepage FROM pages WHERE site_id = $1",
     )
     .bind(site_id)
     .fetch_all(db)
     .await?;
 
     let mut env = Environment::new();
-    
+
     // Find templates directory
     let cwd = std::env::current_dir().unwrap_or_default();
     let template_dir = cwd.join("templates");
-    
+
     let base_html = std::fs::read_to_string(template_dir.join("base.html"))
         .map_err(|e| format!("Failed to read base.html: {}", e))?;
     let post_html = std::fs::read_to_string(template_dir.join("post.html"))
@@ -57,7 +66,7 @@ pub async fn build_site(db: &sqlx::PgPool, site_id: Uuid) -> Result<(), Box<dyn 
         .map_err(|e| format!("Failed to read page.html: {}", e))?;
     let index_html = std::fs::read_to_string(template_dir.join("index.html"))
         .map_err(|e| format!("Failed to read index.html: {}", e))?;
-    
+
     // Load all templates first so inheritance works
     env.add_template("base", &base_html)?;
     env.add_template("post", &post_html)?;
@@ -65,16 +74,19 @@ pub async fn build_site(db: &sqlx::PgPool, site_id: Uuid) -> Result<(), Box<dyn 
     // Load index last since it extends base
     env.add_template("index", &index_html)?;
 
-    let posts_data: Vec<serde_json::Value> = posts.iter().map(|p| {
-        serde_json::json!({
-            "title": p.0,
-            "slug": p.1,
-            "content": render_blocks(&p.2),
-            "excerpt": p.3,
-            "featured_image": p.4,
-            "published_at": p.5.format("%Y-%m-%d").to_string(),
+    let posts_data: Vec<serde_json::Value> = posts
+        .iter()
+        .map(|p| {
+            serde_json::json!({
+                "title": p.0,
+                "slug": p.1,
+                "content": render_blocks(&p.2),
+                "excerpt": p.3,
+                "featured_image": p.4,
+                "published_at": p.5.format("%Y-%m-%d").to_string(),
+            })
         })
-    }).collect();
+        .collect();
 
     let homepage = pages.iter().find(|p| p.3);
     let other_pages: Vec<_> = pages.iter().filter(|p| !p.3).collect();
@@ -190,7 +202,7 @@ fn render_blocks(content: &serde_json::Value) -> String {
             .map(|block| {
                 let block_type = block.get("block_type").and_then(|b| b.as_str()).unwrap_or("text");
                 let block_content = block.get("content");
-                
+
                 match block_type {
                     "heading" => {
                         let level = block.get("level").and_then(|l| l.as_i64()).unwrap_or(2);

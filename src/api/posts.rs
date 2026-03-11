@@ -1,19 +1,24 @@
 use axum::{
-    extract::{State, Path},
+    extract::{Path, State},
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
-    http::StatusCode,
     Json,
 };
 use uuid::Uuid;
 
-use crate::{AppState, ApiError, Post, CreatePostRequest, UpdatePostRequest, ssg};
+use crate::api::auth::{require_auth, require_site_member};
+use crate::{ssg, ApiError, AppState, CreatePostRequest, Post, UpdatePostRequest};
 
 pub async fn list(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(site_id): Path<Uuid>,
 ) -> Result<Json<Vec<Post>>, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
+
     let posts = sqlx::query_as::<_, (
-        Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value, 
+        Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value,
         Option<String>, Option<String>, String, Option<chrono::DateTime<chrono::Utc>>,
         chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
     )>(
@@ -25,31 +30,38 @@ pub async fn list(
     .await
     .map_err(|e| ApiError::new(format!("Failed to fetch posts: {}", e)))?;
 
-    let posts: Vec<Post> = posts.into_iter().map(|p| Post {
-        id: p.0,
-        site_id: p.1,
-        author_id: p.2,
-        title: p.3,
-        slug: p.4,
-        content: p.5,
-        excerpt: p.6,
-        featured_image: p.7,
-        status: p.8,
-        published_at: p.9,
-        created_at: p.10,
-        updated_at: p.11,
-        seo: p.12,
-    }).collect();
+    let posts: Vec<Post> = posts
+        .into_iter()
+        .map(|p| Post {
+            id: p.0,
+            site_id: p.1,
+            author_id: p.2,
+            title: p.3,
+            slug: p.4,
+            content: p.5,
+            excerpt: p.6,
+            featured_image: p.7,
+            status: p.8,
+            published_at: p.9,
+            created_at: p.10,
+            updated_at: p.11,
+            seo: p.12,
+        })
+        .collect();
 
     Ok(Json(posts))
 }
 
 pub async fn get(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<Post>, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
+
     let post = sqlx::query_as::<_, (
-        Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value, 
+        Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value,
         Option<String>, Option<String>, String, Option<chrono::DateTime<chrono::Utc>>,
         chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
     )>(
@@ -81,15 +93,20 @@ pub async fn get(
 
 pub async fn create(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(site_id): Path<Uuid>,
     Json(payload): Json<CreatePostRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
+
     if payload.title.is_empty() {
         return Err(ApiError::new("Title is required"));
     }
 
     let slug = payload.slug.unwrap_or_else(|| {
-        payload.title
+        payload
+            .title
             .to_lowercase()
             .chars()
             .map(|c| if c.is_alphanumeric() { c } else { '-' })
@@ -104,7 +121,7 @@ pub async fn create(
     let seo = payload.seo.clone().unwrap_or(serde_json::json!({}));
 
     let result = sqlx::query_as::<_, (
-        Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value, 
+        Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value,
         Option<String>, Option<String>, String, Option<chrono::DateTime<chrono::Utc>>,
         chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
     )>(
@@ -143,9 +160,13 @@ pub async fn create(
 
 pub async fn update(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<UpdatePostRequest>,
 ) -> Result<Json<Post>, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
+
     let title = payload.title.clone();
     let content = payload.content.clone();
     let excerpt = payload.excerpt.clone();
@@ -154,7 +175,7 @@ pub async fn update(
     let seo = payload.seo.clone();
 
     let result = sqlx::query_as::<_, (
-        Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value, 
+        Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value,
         Option<String>, Option<String>, String, Option<chrono::DateTime<chrono::Utc>>,
         chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
     )>(
@@ -200,8 +221,12 @@ pub async fn update(
 
 pub async fn delete(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
+
     sqlx::query("DELETE FROM posts WHERE site_id = $1 AND id = $2")
         .bind(site_id)
         .bind(id)
@@ -214,10 +239,14 @@ pub async fn delete(
 
 pub async fn publish(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((site_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<Post>, ApiError> {
+    let current_user = require_auth(State(state.clone()), headers).await?;
+    require_site_member(&state, site_id, current_user.user_id).await?;
+
     let result = sqlx::query_as::<_, (
-        Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value, 
+        Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value,
         Option<String>, Option<String>, String, Option<chrono::DateTime<chrono::Utc>>,
         chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
     )>(

@@ -1,20 +1,21 @@
-FROM rust:debian-bookworm-slim AS builder
+# Build stage
+FROM rust:latest AS builder
 
 WORKDIR /app
 
+# Install build dependencies
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 
-# Pre-build dependencies to leverage Docker cache
-COPY Cargo.toml ./
-RUN mkdir -p src/api
-
-# Copy all source files
+# Copy source and build
+COPY Cargo.toml Cargo.lock ./
 COPY src ./src
+COPY templates ./templates
+COPY admin.html ./
 
-# Build the project
-RUN cargo build --release --bin blog-platform
+RUN cargo build --release
 
-FROM debian:bookworm-slim
+# Final stage
+FROM debian:bookworm
 
 RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
 
@@ -22,7 +23,7 @@ WORKDIR /app
 
 COPY --from=builder /app/target/release/blog-platform ./
 COPY --from=builder /app/templates ./templates
-COPY --from=builder /app/admin.html .
+COPY --from=builder /app/admin.html ./
 
 EXPOSE 3000
 
