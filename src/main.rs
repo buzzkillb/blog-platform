@@ -11,7 +11,7 @@ pub use errors::{
 pub use models::{ContactSubmission, Media, Page, Post, Site, User};
 pub use state::AppState;
 
-use handlers::{view_blog_at_path, view_page, view_post, view_site};
+use handlers::view_blog_at_path;
 
 use axum::{
     extract::State,
@@ -135,6 +135,7 @@ async fn admin_handler(
     )
 }
 
+#[allow(dead_code)]
 async fn sitemap_handler(
     slug: Option<axum::extract::Path<String>>,
     State(state): State<AppState>,
@@ -204,6 +205,7 @@ async fn sitemap_handler(
     }
 }
 
+#[allow(dead_code)]
 async fn feed_handler(
     slug: Option<axum::extract::Path<String>>,
     State(state): State<AppState>,

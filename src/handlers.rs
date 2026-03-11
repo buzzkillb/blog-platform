@@ -8,6 +8,7 @@ use axum::http::StatusCode;
 use sqlx::Row;
 use uuid::Uuid;
 
+#[allow(dead_code)]
 pub async fn view_site(
     axum::extract::Path(slug): axum::extract::Path<String>,
     State(state): State<AppState>,
@@ -114,6 +115,7 @@ pub async fn view_site(
     }
 }
 
+#[allow(dead_code)]
 pub async fn view_post(
     axum::extract::Path((slug, post_slug)): axum::extract::Path<(String, String)>,
     State(state): State<AppState>,
@@ -188,6 +190,7 @@ pub async fn view_post(
     }
 }
 
+#[allow(dead_code)]
 pub async fn view_page(
     axum::extract::Path((slug, page_slug)): axum::extract::Path<(String, String)>,
     State(state): State<AppState>,
