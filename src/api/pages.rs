@@ -1,0 +1,203 @@
+use axum::{
+    extract::{State, Path},
+    response::IntoResponse,
+    http::StatusCode,
+    Json,
+};
+use uuid::Uuid;
+
+use crate::{AppState, ApiError, Page, CreatePageRequest, UpdatePageRequest};
+
+pub async fn list(
+    State(state): State<AppState>,
+    Path(site_id): Path<Uuid>,
+) -> Result<Json<Vec<Page>>, ApiError> {
+    let pages = sqlx::query_as::<_, (
+        Uuid, Uuid, String, String, serde_json::Value, bool,
+        chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
+    )>(
+        "SELECT id, site_id, title, slug, content, is_homepage, created_at, updated_at, seo 
+         FROM pages WHERE site_id = $1 ORDER BY is_homepage DESC, created_at DESC"
+    )
+    .bind(site_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| ApiError::new(format!("Failed to fetch pages: {}", e)))?;
+
+    let pages: Vec<Page> = pages.into_iter().map(|p| Page {
+        id: p.0,
+        site_id: p.1,
+        title: p.2,
+        slug: p.3,
+        content: p.4,
+        is_homepage: p.5,
+        created_at: p.6,
+        updated_at: p.7,
+        seo: p.8,
+    }).collect();
+
+    Ok(Json(pages))
+}
+
+pub async fn get(
+    State(state): State<AppState>,
+    Path((site_id, id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<Page>, ApiError> {
+    let page = sqlx::query_as::<_, (
+        Uuid, Uuid, String, String, serde_json::Value, bool,
+        chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
+    )>(
+        "SELECT id, site_id, title, slug, content, is_homepage, created_at, updated_at, seo 
+         FROM pages WHERE site_id = $1 AND id = $2"
+    )
+    .bind(site_id)
+    .bind(id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|_| ApiError::new("Page not found"))?;
+
+    Ok(Json(Page {
+        id: page.0,
+        site_id: page.1,
+        title: page.2,
+        slug: page.3,
+        content: page.4,
+        is_homepage: page.5,
+        created_at: page.6,
+        updated_at: page.7,
+        seo: page.8,
+    }))
+}
+
+pub async fn create(
+    State(state): State<AppState>,
+    Path(site_id): Path<Uuid>,
+    Json(payload): Json<CreatePageRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    if payload.title.is_empty() {
+        return Err(ApiError::new("Title is required"));
+    }
+
+    let slug = payload.slug.unwrap_or_else(|| {
+        payload.title
+            .to_lowercase()
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { '-' })
+            .collect::<String>()
+            .trim_matches('-')
+            .to_string()
+    });
+
+    let is_homepage = payload.is_homepage.unwrap_or(false);
+
+    if is_homepage {
+        sqlx::query("UPDATE pages SET is_homepage = false WHERE site_id = $1")
+            .bind(site_id)
+            .execute(&state.db)
+            .await
+            .ok();
+    }
+
+    let content = payload.content.clone();
+    let seo = payload.seo.clone().unwrap_or(serde_json::json!({}));
+
+    let result = sqlx::query_as::<_, (
+        Uuid, Uuid, String, String, serde_json::Value, bool,
+        chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
+    )>(
+        "INSERT INTO pages (site_id, title, slug, content, is_homepage, seo) VALUES ($1, $2, $3, $4, $5, $6) 
+         RETURNING id, site_id, title, slug, content, is_homepage, created_at, updated_at, seo"
+    )
+    .bind(site_id)
+    .bind(&payload.title)
+    .bind(&slug)
+    .bind(&content)
+    .bind(is_homepage)
+    .bind(&seo)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| ApiError::new(format!("Failed to create page: {}", e)))?;
+
+    let page = Page {
+        id: result.0,
+        site_id: result.1,
+        title: result.2,
+        slug: result.3,
+        content: result.4,
+        is_homepage: result.5,
+        created_at: result.6,
+        updated_at: result.7,
+        seo: result.8,
+    };
+
+    Ok((StatusCode::CREATED, Json(page)))
+}
+
+pub async fn update(
+    State(state): State<AppState>,
+    Path((site_id, id)): Path<(Uuid, Uuid)>,
+    Json(payload): Json<UpdatePageRequest>,
+) -> Result<Json<Page>, ApiError> {
+    if payload.is_homepage == Some(true) {
+        sqlx::query("UPDATE pages SET is_homepage = false WHERE site_id = $1 AND id != $2")
+            .bind(site_id)
+            .bind(id)
+            .execute(&state.db)
+            .await
+            .ok();
+    }
+
+    let title = payload.title.clone();
+    let content = payload.content.clone();
+    let is_homepage = payload.is_homepage;
+    let seo = payload.seo.clone();
+
+    let result = sqlx::query_as::<_, (
+        Uuid, Uuid, String, String, serde_json::Value, bool,
+        chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
+    )>(
+        "UPDATE pages SET 
+            title = COALESCE($3, title),
+            content = COALESCE($4, content),
+            is_homepage = COALESCE($5, is_homepage),
+            seo = COALESCE($6, seo),
+            updated_at = NOW()
+         WHERE site_id = $1 AND id = $2
+         RETURNING id, site_id, title, slug, content, is_homepage, created_at, updated_at, seo"
+    )
+    .bind(site_id)
+    .bind(id)
+    .bind(title)
+    .bind(content)
+    .bind(is_homepage)
+    .bind(seo)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|_| ApiError::new("Page not found"))?;
+
+    Ok(Json(Page {
+        id: result.0,
+        site_id: result.1,
+        title: result.2,
+        slug: result.3,
+        content: result.4,
+        is_homepage: result.5,
+        created_at: result.6,
+        updated_at: result.7,
+        seo: result.8,
+    }))
+}
+
+pub async fn delete(
+    State(state): State<AppState>,
+    Path((site_id, id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, ApiError> {
+    sqlx::query("DELETE FROM pages WHERE site_id = $1 AND id = $2")
+        .bind(site_id)
+        .bind(id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| ApiError::new(format!("Failed to delete page: {}", e)))?;
+
+    Ok(StatusCode::NO_CONTENT)
+}

@@ -1,0 +1,20 @@
+[package]
+name = "admin"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+leptos = { workspace = true, features = ["serde"] }
+leptos_axum = { workspace = true }
+leptos_meta = { workspace = true }
+leptos_router = { workspace = true }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+reqwest = { workspace = true }
+uuid = { workspace = true }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
