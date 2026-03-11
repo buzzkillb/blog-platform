@@ -79,7 +79,7 @@ pub async fn register(
             .bind(&token)
             .execute(&state.db)
             .await
-            .ok();
+            .map_err(|e| ApiError::new(format!("Failed to create auth token: {}", e)))?;
 
             // Auto-add user to first site if exists
             if let Ok(Some(site_id)) =
@@ -191,7 +191,7 @@ pub async fn login(
     .bind(&token)
     .execute(&state.db)
     .await
-    .ok();
+    .map_err(|e| ApiError::new(format!("Failed to create auth token: {}", e)))?;
 
     Ok(Json(crate::LoginResponse {
         user: user_response,
