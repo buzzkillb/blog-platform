@@ -160,13 +160,13 @@ pub async fn login(
         .bind(&payload.email)
         .fetch_one(&state.db)
         .await
-        .map_err(|_| ApiError::new("Invalid email or password"))?;
+        .map_err(|_| ApiError::unauthorized("Invalid email or password"))?;
 
     let valid = verify(&payload.password, &user.2)
-        .map_err(|_| ApiError::new("Invalid email or password"))?;
+        .map_err(|_| ApiError::unauthorized("Invalid email or password"))?;
 
     if !valid {
-        return Err(ApiError::new("Invalid email or password"));
+        return Err(ApiError::unauthorized("Invalid email or password"));
     }
 
     let user = User {
@@ -236,8 +236,8 @@ pub async fn validate_token(state: &AppState, token: &str) -> Result<Uuid, ApiEr
     .bind(token)
     .fetch_one(&state.db)
     .await
-    .map_err(|_| ApiError::new("Invalid token"))?
-    .ok_or_else(|| ApiError::new("Invalid or expired token"))?;
+    .map_err(|_| ApiError::unauthorized("Invalid token"))?
+    .ok_or_else(|| ApiError::unauthorized("Invalid or expired token"))?;
 
     Ok(user_id)
 }
