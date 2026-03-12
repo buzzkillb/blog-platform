@@ -89,10 +89,10 @@ pub async fn build_site(
         .map_err(|e| format!("Failed to read index.html: {}", e))?;
 
     // Load templates
-    env.add_template("base", &base_html)?;
-    env.add_template("post", &post_html)?;
-    env.add_template("page", &page_html)?;
-    env.add_template("index", &index_html)?;
+    env.add_template("base.html", &base_html)?;
+    env.add_template("post.html", &post_html)?;
+    env.add_template("page.html", &page_html)?;
+    env.add_template("index.html", &index_html)?;
 
     let site_url = std::env::var("SITE_URL").unwrap_or_else(|_| "https://example.com".to_string());
 
@@ -218,7 +218,7 @@ pub async fn build_site(
         posts => posts_data.clone(),
     };
 
-    let index_template = env.get_template("index")?;
+    let index_template = env.get_template("index.html")?;
     let index_html = index_template.render(ctx)?;
     std::fs::write(output_dir.join("index.html"), index_html)?;
 
@@ -237,7 +237,7 @@ pub async fn build_site(
         posts => posts_data.clone(),
         title => "Blog",
     };
-    let page_template = env.get_template("page")?;
+    let page_template = env.get_template("page.html")?;
     let blog_html = page_template.render(blog_ctx)?;
     std::fs::write(output_dir.join("blog.html"), blog_html)?;
 
@@ -264,7 +264,7 @@ pub async fn build_site(
             published_at => post.5.format("%Y-%m-%d").to_string(),
             url => format!("/blog/{}", post.1),
         };
-        let post_template = env.get_template("page")?;
+        let post_template = env.get_template("page.html")?;
         let post_html = post_template.render(post_ctx)?;
         let blog_dir = output_dir.join("blog");
         std::fs::create_dir_all(&blog_dir)?;
@@ -287,7 +287,7 @@ pub async fn build_site(
             slug => &home.1,
             content => render_blocks(&home.2),
         };
-        let page_template = env.get_template("page")?;
+        let page_template = env.get_template("page.html")?;
         let page_html = page_template.render(page_ctx)?;
         std::fs::write(output_dir.join("index.html"), page_html)?;
     }
@@ -309,7 +309,7 @@ pub async fn build_site(
             content => render_blocks(&page.2),
             url => format!("/{}", page.1),
         };
-        let page_template = env.get_template("page")?;
+        let page_template = env.get_template("page.html")?;
         let page_html = page_template.render(page_ctx)?;
         std::fs::write(output_dir.join(format!("{}.html", page.1)), page_html)?;
     }
