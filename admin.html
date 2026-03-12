@@ -21,7 +21,6 @@
         .editor-block.drag-over { border-color: #238636; border-style: solid; }
         .block-handle { cursor: move; padding: 4px 8px; color: #8b949e; }
         .block-handle:hover { color: #c9d1d9; }
-        .prose { color: #c9d1d9; }
         
         /* Toast notifications */
         #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; }
@@ -46,6 +45,17 @@
             toast.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${message}`;
             container.appendChild(toast);
             setTimeout(() => toast.remove(), 3000);
+        }
+        
+        // Escape HTML to prevent XSS
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.toString()
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
         }
         
         const API_BASE = '';
@@ -281,8 +291,8 @@
                         list.innerHTML = sites.map(site => `
                             <div class="card p-4 rounded-lg flex justify-between items-center">
                                 <div>
-                                    <h3 class="text-white font-medium">${site.name}</h3>
-                                    <p class="text-gray-400 text-sm">${site.subdomain || 'No domain'}</p>
+                                    <h3 class="text-white font-medium">${escapeHtml(site.name)}</h3>
+                                    <p class="text-gray-400 text-sm">${escapeHtml(site.subdomain || 'No domain')}</p>
                                 </div>
                                 <div class="flex gap-2">
                                     <button onclick="toggleSiteEdit('${site.id}')" class="btn-secondary text-white px-3 py-1 rounded">Settings</button>
@@ -347,52 +357,6 @@
                     showToast('Failed to save', 'error');
                 }
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
-        }
-
-        async function editSite(siteId) {
-            try {
-                const res = await fetch(API_BASE + '/api/sites/' + siteId, {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                if (res.ok) {
-                    const site = await res.json();
-                    document.getElementById('edit-site-id').value = site.id;
-                    document.getElementById('edit-site-name').value = site.name || '';
-                    document.getElementById('edit-site-description').value = site.description || '';
-                    document.getElementById('edit-site-subdomain').value = site.subdomain || '';
-                    document.getElementById('edit-site-form').classList.remove('hidden');
-                }
-            } catch (err) { showToast('Error: ' + err.message, 'error'); }
-        }
-
-        async function saveSite(e) {
-            e.preventDefault();
-            const siteId = document.getElementById('edit-site-id').value;
-            const name = document.getElementById('edit-site-name').value;
-            const description = document.getElementById('edit-site-description').value;
-            const subdomain = document.getElementById('edit-site-subdomain').value;
-            
-            try {
-                const res = await fetch(API_BASE + '/api/sites/' + siteId, {
-                    method: 'PUT',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + authToken
-                    },
-                    body: JSON.stringify({ name, description, subdomain })
-                });
-                if (res.ok) {
-                    showToast('Site saved!');
-                    document.getElementById('edit-site-form').classList.add('hidden');
-                    loadSites();
-                } else {
-                    showToast('Failed to save', 'error');
-                }
-            } catch (err) { showToast('Error: ' + err.message, 'error'); }
-        }
-
-        function closeEditSite() {
-            document.getElementById('edit-site-form').classList.add('hidden');
         }
 
         async function createSite(e) {
@@ -931,8 +895,8 @@
                         list.innerHTML = posts.map(post => `
                             <div class="card p-4 rounded-lg flex justify-between items-center">
                                 <div>
-                                    <h3 class="text-white font-medium">${post.title}</h3>
-                                    <p class="text-gray-400 text-sm">${post.status} • ${post.slug}</p>
+                                    <h3 class="text-white font-medium">${escapeHtml(post.title)}</h3>
+                                    <p class="text-gray-400 text-sm">${escapeHtml(post.status)} • ${escapeHtml(post.slug)}</p>
                                 </div>
                                 <div class="flex gap-2">
                                     <button onclick="editPost('${post.id}')" class="btn-secondary text-white px-3 py-1 rounded">Edit</button>
@@ -1309,8 +1273,8 @@
                             <div class="card p-4 rounded-lg flex items-center gap-3" data-page-id="${page.id}" data-sort-order="${page.sort_order || 0}">
                                 <div class="text-gray-500 font-mono text-sm w-6">${index + 1}</div>
                                 <div class="flex-1">
-                                    <h3 class="text-white font-medium">${page.title}</h3>
-                                    <p class="text-gray-400 text-sm">/${page.slug}${page.is_homepage ? ' (Homepage)' : ''}</p>
+                                    <h3 class="text-white font-medium">${escapeHtml(page.title)}</h3>
+                                    <p class="text-gray-400 text-sm">/${escapeHtml(page.slug)}${page.is_homepage ? ' (Homepage)' : ''}</p>
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <button type="button" id="navbtn-${page.id}" class="px-3 py-1 rounded text-xs font-medium ${page.show_in_nav === false ? 'bg-gray-600' : 'bg-green-600'} text-white">
@@ -1856,12 +1820,12 @@
                             <div class="card p-4 rounded-lg">
                                 <div class="flex justify-between items-start mb-2">
                                     <div>
-                                        <h3 class="text-white font-medium">${s.name}</h3>
-                                        <p class="text-gray-400 text-sm">${s.email}</p>
+                                        <h3 class="text-white font-medium">${escapeHtml(s.name)}</h3>
+                                        <p class="text-gray-400 text-sm">${escapeHtml(s.email)}</p>
                                     </div>
                                     <span class="text-gray-500 text-xs">${new Date(s.created_at).toLocaleString()}</span>
                                 </div>
-                                <p class="text-gray-300">${s.message}</p>
+                                <p class="text-gray-300">${escapeHtml(s.message)}</p>
                             </div>
                         `).join('');
                     }

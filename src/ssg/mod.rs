@@ -93,8 +93,6 @@ pub async fn build_site(
 
     let base_html = std::fs::read_to_string(template_dir.join("base.html"))
         .map_err(|e| format!("Failed to read base.html: {}", e))?;
-    let post_html = std::fs::read_to_string(template_dir.join("post.html"))
-        .map_err(|e| format!("Failed to read post.html: {}", e))?;
     let page_html = std::fs::read_to_string(template_dir.join("page.html"))
         .map_err(|e| format!("Failed to read page.html: {}", e))?;
     let index_html = std::fs::read_to_string(template_dir.join("index.html"))
@@ -102,7 +100,6 @@ pub async fn build_site(
 
     // Load templates
     env.add_template("base.html", &base_html)?;
-    env.add_template("post.html", &post_html)?;
     env.add_template("page.html", &page_html)?;
     env.add_template("index.html", &index_html)?;
 
