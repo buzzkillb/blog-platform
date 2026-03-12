@@ -48,7 +48,6 @@ pub async fn build_site(
 
     // Build site URL - use custom_domain as the primary domain
     let site_url = if let Some(d) = domain {
-        println!("DEBUG: domain from DB: '{}'", d);
         if d.starts_with("http") {
             d
         } else {
@@ -57,7 +56,6 @@ pub async fn build_site(
     } else {
         "https://example.com".to_string()
     };
-    println!("DEBUG: site_url: '{}'", site_url);
 
     let posts = sqlx::query_as::<_, (
         String, String, serde_json::Value, Option<String>, Option<String>, chrono::DateTime<chrono::Utc>
@@ -108,6 +106,13 @@ pub async fn build_site(
     env.add_template("page.html", &page_html)?;
     env.add_template("index.html", &index_html)?;
 
+    // Get non-homepage pages for sitemap
+    let sitemap_pages: Vec<String> = pages
+        .iter()
+        .filter(|p| !p.3) // exclude homepage
+        .map(|p| p.1.clone())
+        .collect();
+
     let sitemap_xml = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -121,22 +126,23 @@ pub async fn build_site(
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
 </url>
-<url>
-    <loc>{}/about</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-</url>
-<url>
-    <loc>{}/contact</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-</url>
+{}
 {}
 </urlset>"#,
         site_url,
         site_url,
-        site_url,
-        site_url,
+        sitemap_pages
+            .iter()
+            .map(|slug| format!(
+                r#"<url>
+    <loc>{}/{}</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+</url>"#,
+                site_url, slug
+            ))
+            .collect::<Vec<_>>()
+            .join("\n"),
         posts
             .iter()
             .map(|p| format!(
