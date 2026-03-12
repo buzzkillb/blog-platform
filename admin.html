@@ -664,6 +664,66 @@
             }
         }
 
+        async function handleLogoDrop(event) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('border-blue-500');
+            const file = event.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                handleLogoUpload(file);
+            }
+        }
+
+        async function handleFaviconDrop(event) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('border-blue-500');
+            const file = event.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                handleFaviconUpload(file);
+            }
+        }
+
+        async function handleLogoUpload(file) {
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/media', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + authToken },
+                    body: formData
+                });
+                if (res.ok) {
+                    const media = await res.json();
+                    document.getElementById('setting-logo-url').value = media.url;
+                    showToast('Logo uploaded!');
+                    loadSiteSettings();
+                } else {
+                    showToast('Upload failed', 'error');
+                }
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }
+
+        async function handleFaviconUpload(file) {
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/media', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + authToken },
+                    body: formData
+                });
+                if (res.ok) {
+                    const media = await res.json();
+                    document.getElementById('setting-favicon-url').value = media.url;
+                    showToast('Favicon uploaded!');
+                    loadSiteSettings();
+                } else {
+                    showToast('Upload failed', 'error');
+                }
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }
+
         function renderBlocks() {
             const container = document.getElementById('blocks-container');
             container.innerHTML = blocks.map((block, index) => {
@@ -1455,11 +1515,27 @@
                             <div>
                                 <label class="block text-gray-400 mb-2">Logo URL</label>
                                 <input type="text" id="setting-logo-url" class="w-full rounded px-4 py-2" value="${site.logo_url || ''}" placeholder="https://example.com/logo.png">
+                                <div class="mt-2 border-2 border-dashed border-gray-600 rounded p-4 text-center cursor-pointer hover:border-blue-500 transition-colors"
+                                    ondragover="event.preventDefault(); this.classList.add('border-blue-500')"
+                                    ondragleave="this.classList.remove('border-blue-500')"
+                                    ondrop="handleLogoDrop(event)">
+                                    <span class="text-gray-400 text-sm">Drop logo image here or click to upload</span>
+                                    <input type="file" id="logo-file" class="hidden" accept="image/*" onchange="handleLogoUpload(this.files[0])">
+                                </div>
+                                ${site.logo_url ? `<img src="${site.logo_url}" class="mt-2 max-h-24 rounded">` : ''}
                             </div>
                             
                             <div>
                                 <label class="block text-gray-400 mb-2">Favicon URL</label>
                                 <input type="text" id="setting-favicon-url" class="w-full rounded px-4 py-2" value="${site.favicon_url || ''}" placeholder="https://example.com/favicon.ico">
+                                <div class="mt-2 border-2 border-dashed border-gray-600 rounded p-4 text-center cursor-pointer hover:border-blue-500 transition-colors"
+                                    ondragover="event.preventDefault(); this.classList.add('border-blue-500')"
+                                    ondragleave="this.classList.remove('border-blue-500')"
+                                    ondrop="handleFaviconDrop(event)">
+                                    <span class="text-gray-400 text-sm">Drop favicon image here or click to upload</span>
+                                    <input type="file" id="favicon-file" class="hidden" accept="image/*" onchange="handleFaviconUpload(this.files[0])">
+                                </div>
+                                ${site.favicon_url ? `<img src="${site.favicon_url}" class="mt-2 max-h-12 rounded">` : ''}
                             </div>
                             
                             <div>
