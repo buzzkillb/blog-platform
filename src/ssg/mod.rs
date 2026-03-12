@@ -58,7 +58,7 @@ pub async fn build_site(
     };
 
     let posts = sqlx::query_as::<_, (
-        String, String, serde_json::Value, Option<String>, Option<String>, chrono::DateTime<chrono::Utc>
+        String, String, serde_json::Value, Option<String>, Option<String>, Option<chrono::DateTime<chrono::Utc>>
     )>(
         "SELECT title, slug, content, excerpt, featured_image, published_at FROM posts WHERE site_id = $1 AND status = 'published' ORDER BY published_at DESC"
     )
@@ -174,7 +174,7 @@ pub async fn build_site(
                 p.1,
                 site_url,
                 p.1,
-                p.5.format("%a, %d %b %Y %H:%M:%S +0000"),
+                p.5.map(|dt| dt.format("%a, %d %b %Y %H:%M:%S +0000").to_string()).unwrap_or_else(|| chrono::Utc::now().format("%a, %d %b %Y %H:%M:%S +0000").to_string()),
                 p.3.as_deref().unwrap_or("")
             )
         })
@@ -211,7 +211,7 @@ pub async fn build_site(
                 "content": render_blocks(&p.2),
                 "excerpt": p.3,
                 "featured_image": p.4,
-                "published_at": p.5.format("%Y-%m-%d").to_string(),
+                "published_at": p.5.map(|dt| dt.format("%Y-%m-%d").to_string()).unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string()),
             })
         })
         .collect();
@@ -234,6 +234,7 @@ pub async fn build_site(
         contact_email => contact_email,
         contact_address => contact_address,
         posts => posts_data.clone(),
+        url => "/",
     };
 
     let index_template = env.get_template("index.html")?;
@@ -254,6 +255,7 @@ pub async fn build_site(
         contact_address => contact_address,
         posts => posts_data.clone(),
         title => "Blog",
+        url => "/blog",
     };
     let page_template = env.get_template("page.html")?;
     let blog_html = page_template.render(blog_ctx)?;
@@ -279,7 +281,7 @@ pub async fn build_site(
             content => render_blocks(&post.2),
             excerpt => &post.3,
             featured_image => featured_img,
-            published_at => post.5.format("%Y-%m-%d").to_string(),
+            published_at => post.5.map(|dt| dt.format("%Y-%m-%d").to_string()).unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string()),
             url => format!("/blog/{}", post.1),
         };
         let post_template = env.get_template("page.html")?;
