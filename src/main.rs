@@ -74,7 +74,10 @@ async fn main() {
     let state = AppState { db };
 
     let output_dir = std::path::Path::new("output");
-    let needs_build = !output_dir.exists() || std::fs::read_dir(output_dir).map(|mut e| e.next().is_none()).unwrap_or(true);
+    let needs_build = !output_dir.exists()
+        || std::fs::read_dir(output_dir)
+            .map(|mut e| e.next().is_none())
+            .unwrap_or(true);
     if needs_build {
         if let Ok(site) = sqlx::query("SELECT id FROM sites LIMIT 1")
             .fetch_one(&state.db)
@@ -101,32 +104,40 @@ async fn main() {
         .route("/health", get(health_check))
         .route("/admin", get(admin_handler))
         .route("/admin/{*path}", get(admin_handler))
-        .route("/", get(|State(_state): State<AppState>| async move {
-            let html_path = "output/index.html";
-            if std::path::Path::new(html_path).exists() {
-                if let Ok(content) = tokio::fs::read_to_string(html_path).await {
-                    return axum::response::Html(content).into_response();
+        .route(
+            "/",
+            get(|State(_state): State<AppState>| async move {
+                let html_path = "output/index.html";
+                if std::path::Path::new(html_path).exists() {
+                    if let Ok(content) = tokio::fs::read_to_string(html_path).await {
+                        return axum::response::Html(content).into_response();
+                    }
                 }
-            }
-            axum::response::Html("Not found").into_response()
-        }))
-        .route("/{*path}", get(|axum::extract::Path(path): axum::extract::Path<String>| async move {
-            // Try .html first
-            let html_path = format!("output/{}.html", path);
-            if std::path::Path::new(&html_path).exists() {
-                if let Ok(content) = tokio::fs::read_to_string(&html_path).await {
-                    return axum::response::Html(content).into_response();
-                }
-            }
-            // Try exact file match (for sitemap.xml, feed.xml, etc)
-            let file_path = format!("output/{}", path);
-            if std::path::Path::new(&file_path).exists() {
-                if let Ok(content) = tokio::fs::read_to_string(&file_path).await {
-                    return axum::response::Html(content).into_response();
-                }
-            }
-            axum::response::Html("Not found").into_response()
-        }))
+                axum::response::Html("Not found").into_response()
+            }),
+        )
+        .route(
+            "/{*path}",
+            get(
+                |axum::extract::Path(path): axum::extract::Path<String>| async move {
+                    // Try .html first
+                    let html_path = format!("output/{}.html", path);
+                    if std::path::Path::new(&html_path).exists() {
+                        if let Ok(content) = tokio::fs::read_to_string(&html_path).await {
+                            return axum::response::Html(content).into_response();
+                        }
+                    }
+                    // Try exact file match (for sitemap.xml, feed.xml, etc)
+                    let file_path = format!("output/{}", path);
+                    if std::path::Path::new(&file_path).exists() {
+                        if let Ok(content) = tokio::fs::read_to_string(&file_path).await {
+                            return axum::response::Html(content).into_response();
+                        }
+                    }
+                    axum::response::Html("Not found").into_response()
+                },
+            ),
+        )
         .nest_service("/static", static_files.clone())
         .nest_service("/media", media_files)
         .merge(api::routes())

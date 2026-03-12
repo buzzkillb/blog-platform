@@ -77,7 +77,8 @@ pub async fn build_site(
 
     let site_url = std::env::var("SITE_URL").unwrap_or_else(|_| "https://example.com".to_string());
 
-    let sitemap_xml = format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+    let sitemap_xml = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 <url>
     <loc>{}/</loc>
@@ -105,29 +106,45 @@ pub async fn build_site(
         site_url,
         site_url,
         site_url,
-        posts.iter().map(|p| format!(r#"<url>
+        posts
+            .iter()
+            .map(|p| format!(
+                r#"<url>
     <loc>{}/{}</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
-</url>"#, site_url, p.1)).collect::<Vec<_>>().join("\n")
+</url>"#,
+                site_url, p.1
+            ))
+            .collect::<Vec<_>>()
+            .join("\n")
     );
     env.add_template("sitemap", &sitemap_xml)?;
 
-    let feed_items: Vec<String> = posts.iter().map(|p| {
-        format!(r#"<item>
+    let feed_items: Vec<String> = posts
+        .iter()
+        .map(|p| {
+            format!(
+                r#"<item>
         <title><![CDATA[{}]]></title>
         <link>{}/{}</link>
         <guid isPermaLink="true">{}/{}</guid>
         <pubDate>{}</pubDate>
         <description><![CDATA[{}]]></description>
-    </item>"#, 
-            p.0, site_url, p.1, site_url, p.1, 
-            p.5.format("%a, %d %b %Y %H:%M:%S +0000"),
-            p.3.as_deref().unwrap_or("")
-        )
-    }).collect();
+    </item>"#,
+                p.0,
+                site_url,
+                p.1,
+                site_url,
+                p.1,
+                p.5.format("%a, %d %b %Y %H:%M:%S +0000"),
+                p.3.as_deref().unwrap_or("")
+            )
+        })
+        .collect();
 
-    let feed_xml = format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+    let feed_xml = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
 <channel>
     <title>{}</title>
