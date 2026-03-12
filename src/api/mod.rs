@@ -74,7 +74,9 @@ async fn build_site(
     // Build the site synchronously so we can return result
     let db = state.db.clone();
     match crate::ssg::build_site(&db, site_id).await {
-        Ok(_) => Ok(Json(serde_json::json!({ "message": "Site built successfully" }))),
+        Ok(_) => Ok(Json(
+            serde_json::json!({ "message": "Site built successfully" }),
+        )),
         Err(e) => {
             tracing::error!("Failed to build site: {}", e);
             Err(ApiError::new(format!("Failed to build site: {}", e)))

@@ -1569,28 +1569,6 @@
             `;
         }
 
-        async function loadSettingsSiteSelect() {
-            try {
-                const res = await fetch(API_BASE + '/api/sites', {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                if (res.ok) {
-                    const sites = await res.json();
-                    const select = document.getElementById('settings-site-select');
-                    select.innerHTML = '<option value="">-- Select a site --</option>' + 
-                        sites.map(s => `<option value="${s.id}" ${s.id === currentSite ? 'selected' : ''}>${s.name}</option>`).join('');
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        function switchToSite(siteId) {
-            if (siteId) {
-                currentSite = siteId;
-                localStorage.setItem('blog_site_id', siteId);
-                loadSiteSettings();
-            }
-        }
-
         async function loadSiteSettings() {
             if (!currentSite) return;
             try {
