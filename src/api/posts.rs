@@ -7,6 +7,7 @@ use axum::{
 use uuid::Uuid;
 
 use crate::api::auth::{require_auth, require_site_member};
+use crate::models::PostRow;
 use crate::{
     ssg, util::generate_slug, ApiError, AppState, CreatePostRequest, Post, UpdatePostRequest,
 };
@@ -19,11 +20,7 @@ pub async fn list(
     let current_user = require_auth(State(state.clone()), headers).await?;
     require_site_member(&state, site_id, current_user.user_id).await?;
 
-    let posts = sqlx::query_as::<_, (
-        Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value,
-        Option<String>, Option<String>, String, Option<chrono::DateTime<chrono::Utc>>,
-        chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
-    )>(
+    let posts = sqlx::query_as::<_, PostRow>(
         "SELECT id, site_id, author_id, title, slug, content, excerpt, featured_image, status, published_at, created_at, updated_at, seo 
          FROM posts WHERE site_id = $1 ORDER BY published_at DESC NULLS LAST"
     )
@@ -62,11 +59,7 @@ pub async fn get(
     let current_user = require_auth(State(state.clone()), headers).await?;
     require_site_member(&state, site_id, current_user.user_id).await?;
 
-    let post = sqlx::query_as::<_, (
-        Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value,
-        Option<String>, Option<String>, String, Option<chrono::DateTime<chrono::Utc>>,
-        chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
-    )>(
+    let post = sqlx::query_as::<_, PostRow>(
         "SELECT id, site_id, author_id, title, slug, content, excerpt, featured_image, status, published_at, created_at, updated_at, seo 
          FROM posts WHERE site_id = $1 AND id = $2"
     )
@@ -115,11 +108,7 @@ pub async fn create(
     let featured_image = payload.featured_image.clone();
     let seo = payload.seo.clone().unwrap_or(serde_json::json!({}));
 
-    let result = sqlx::query_as::<_, (
-        Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value,
-        Option<String>, Option<String>, String, Option<chrono::DateTime<chrono::Utc>>,
-        chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
-    )>(
+    let result = sqlx::query_as::<_, PostRow>(
         "INSERT INTO posts (site_id, title, slug, content, excerpt, featured_image, seo) VALUES ($1, $2, $3, $4, $5, $6, $7) 
          RETURNING id, site_id, author_id, title, slug, content, excerpt, featured_image, status, published_at, created_at, updated_at, seo"
     )
@@ -169,11 +158,7 @@ pub async fn update(
     let status = payload.status.clone();
     let seo = payload.seo.clone();
 
-    let result = sqlx::query_as::<_, (
-        Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value,
-        Option<String>, Option<String>, String, Option<chrono::DateTime<chrono::Utc>>,
-        chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
-    )>(
+    let result = sqlx::query_as::<_, PostRow>(
         "UPDATE posts SET 
             title = COALESCE($3, title),
             content = COALESCE($4, content),
@@ -240,11 +225,7 @@ pub async fn publish(
     let current_user = require_auth(State(state.clone()), headers).await?;
     require_site_member(&state, site_id, current_user.user_id).await?;
 
-    let result = sqlx::query_as::<_, (
-        Uuid, Uuid, Option<Uuid>, String, String, serde_json::Value,
-        Option<String>, Option<String>, String, Option<chrono::DateTime<chrono::Utc>>,
-        chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
-    )>(
+    let result = sqlx::query_as::<_, PostRow>(
         "UPDATE posts SET status = 'published', published_at = NOW(), updated_at = NOW() 
          WHERE site_id = $1 AND id = $2
          RETURNING id, site_id, author_id, title, slug, content, excerpt, featured_image, status, published_at, created_at, updated_at, seo"

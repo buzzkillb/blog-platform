@@ -7,6 +7,7 @@ use axum::{
 use uuid::Uuid;
 
 use crate::api::auth::{require_auth, require_site_member};
+use crate::models::PageRow;
 use crate::{util::generate_slug, ApiError, AppState, CreatePageRequest, Page, UpdatePageRequest};
 
 pub async fn list(
@@ -17,22 +18,7 @@ pub async fn list(
     let current_user = require_auth(State(state.clone()), headers).await?;
     require_site_member(&state, site_id, current_user.user_id).await?;
 
-    let pages = sqlx::query_as::<
-        _,
-        (
-            Uuid,
-            Uuid,
-            String,
-            String,
-            serde_json::Value,
-            bool,
-            bool,
-            i32,
-            chrono::DateTime<chrono::Utc>,
-            chrono::DateTime<chrono::Utc>,
-            serde_json::Value,
-        ),
-    >(
+    let pages = sqlx::query_as::<_, PageRow>(
         "SELECT id, site_id, title, slug, content, is_homepage, show_in_nav, sort_order, created_at, updated_at, seo 
          FROM pages WHERE site_id = $1 ORDER BY is_homepage DESC, sort_order ASC, created_at DESC",
     )
@@ -69,22 +55,7 @@ pub async fn get(
     let current_user = require_auth(State(state.clone()), headers).await?;
     require_site_member(&state, site_id, current_user.user_id).await?;
 
-    let page = sqlx::query_as::<
-        _,
-        (
-            Uuid,
-            Uuid,
-            String,
-            String,
-            serde_json::Value,
-            bool,
-            bool,
-            i32,
-            chrono::DateTime<chrono::Utc>,
-            chrono::DateTime<chrono::Utc>,
-            serde_json::Value,
-        ),
-    >(
+    let page = sqlx::query_as::<_, PageRow>(
         "SELECT id, site_id, title, slug, content, is_homepage, show_in_nav, sort_order, created_at, updated_at, seo 
          FROM pages WHERE site_id = $1 AND id = $2",
     )
@@ -141,10 +112,7 @@ pub async fn create(
     let content = payload.content.clone();
     let seo = payload.seo.clone().unwrap_or(serde_json::json!({}));
 
-    let result = sqlx::query_as::<_, (
-        Uuid, Uuid, String, String, serde_json::Value, bool,
-        bool, i32, chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
-    )>(
+    let result = sqlx::query_as::<_, PageRow>(
         "INSERT INTO pages (site_id, title, slug, content, is_homepage, show_in_nav, sort_order, seo) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
          RETURNING id, site_id, title, slug, content, is_homepage, show_in_nav, sort_order, created_at, updated_at, seo"
     )
@@ -202,22 +170,7 @@ pub async fn update(
     let sort_order = payload.sort_order;
     let seo = payload.seo.clone();
 
-    let result = sqlx::query_as::<
-        _,
-        (
-            Uuid,
-            Uuid,
-            String,
-            String,
-            serde_json::Value,
-            bool,
-            bool,
-            i32,
-            chrono::DateTime<chrono::Utc>,
-            chrono::DateTime<chrono::Utc>,
-            serde_json::Value,
-        ),
-    >(
+    let result = sqlx::query_as::<_, PageRow>(
         "UPDATE pages SET 
             title = COALESCE($3, title),
             content = COALESCE($4, content),
