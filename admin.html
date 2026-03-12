@@ -1133,6 +1133,14 @@
                                 <input type="checkbox" id="page-homepage">
                                 <label class="text-gray-400">Set as homepage</label>
                             </div>
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" id="page-show-in-nav" checked>
+                                <label class="text-gray-400">Show in navigation</label>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <label class="text-gray-400">Sort order:</label>
+                                <input type="number" id="page-sort-order" value="0" class="w-20 bg-gray-700 text-white px-2 py-1 rounded border border-gray-600">
+                            </div>
                             <div class="flex gap-2 pt-4">
                                 <button onclick="savePage()" class="btn-primary text-white px-6 py-2 rounded">Save</button>
                             </div>
@@ -1151,6 +1159,8 @@
             document.getElementById('page-title').value = '';
             document.getElementById('page-slug').value = '';
             document.getElementById('page-homepage').checked = false;
+            document.getElementById('page-show-in-nav').checked = true;
+            document.getElementById('page-sort-order').value = 0;
             document.getElementById('page-editor-title').textContent = 'New Page';
             renderPageBlocks();
             document.getElementById('page-editor').classList.remove('hidden');
@@ -1272,20 +1282,102 @@
                     if (pages.length === 0) {
                         list.innerHTML = '<p class="text-gray-400">No pages yet.</p>';
                     } else {
-                        list.innerHTML = pages.map(page => `
-                            <div class="card p-4 rounded-lg flex justify-between items-center">
-                                <div>
-                                    <h3 class="text-white font-medium">${page.title}</h3>
-                                    <p class="text-gray-400 text-sm">${page.slug}${page.is_homepage ? ' (Homepage)' : ''}</p>
+                        list.innerHTML = pages.map((page, index) => `
+                            <div class="card p-4 rounded-lg flex items-center gap-3" draggable="true" data-page-id="${page.id}" data-sort-order="${page.sort_order || 0}">
+                                <div class="cursor-move text-gray-500 hover:text-gray-300">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path></svg>
                                 </div>
-                                <div class="flex gap-2">
+                                <div class="flex-1">
+                                    <h3 class="text-white font-medium">${page.title}</h3>
+                                    <p class="text-gray-400 text-sm">/${page.slug}${page.is_homepage ? ' (Homepage)' : ''}</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="togglePageNav('${page.id}', ${!(page.show_in_nav !== false)})" class="px-2 py-1 rounded text-xs ${page.show_in_nav !== false ? 'bg-green-600' : 'bg-gray-600'} text-white" title="${page.show_in_nav !== false ? 'Click to hide from nav' : 'Click to show in nav'}">
+                                        ${page.show_in_nav !== false ? 'Nav' : 'Hidden'}
+                                    </button>
+                                    <input type="number" value="${page.sort_order || 0}" 
+                                        onchange="updatePageSortOrder('${page.id}', this.value)"
+                                        class="w-16 bg-gray-700 text-white text-sm px-2 py-1 rounded border border-gray-600" 
+                                        title="Sort order">
                                     <button onclick="editPage('${page.id}')" class="btn-secondary text-white px-3 py-1 rounded">Edit</button>
                                     <button onclick="deletePage('${page.id}')" class="bg-red-600 text-white px-3 py-1 rounded">Delete</button>
                                 </div>
                             </div>
                         `).join('');
+                        
+                        // Add drag and drop handlers
+                        setupPagesDragDrop();
                     }
                 }
+            } catch (err) { console.error(err); }
+        }
+        
+        function setupPagesDragDrop() {
+            const list = document.getElementById('pages-list');
+            let draggedItem = null;
+            
+            list.querySelectorAll('[draggable="true"]').forEach(item => {
+                item.addEventListener('dragstart', function(e) {
+                    draggedItem = this;
+                    this.classList.add('opacity-50');
+                });
+                
+                item.addEventListener('dragend', function() {
+                    this.classList.remove('opacity-50');
+                    draggedItem = null;
+                });
+                
+                item.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                });
+                
+                item.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    if (draggedItem && draggedItem !== this) {
+                        const fromId = draggedItem.dataset.pageId;
+                        const toId = this.dataset.pageId;
+                        const fromOrder = parseInt(draggedItem.dataset.sortOrder);
+                        const toOrder = parseInt(this.dataset.sortOrder);
+                        
+                        // Swap sort orders
+                        updatePageSortOrder(fromId, toOrder);
+                        updatePageSortOrder(toId, fromOrder);
+                        
+                        loadPages();
+                    }
+                });
+            });
+        }
+        
+        async function togglePageNav(pageId, showInNav) {
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + pageId, {
+                    method: 'PUT',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify({ show_in_nav: showInNav })
+                });
+                if (res.ok) {
+                    showToast(showInNav ? 'Added to navigation!' : 'Removed from navigation!');
+                    loadPages();
+                } else {
+                    showToast('Failed to update', 'error');
+                }
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }
+        
+        async function updatePageSortOrder(pageId, sortOrder) {
+            try {
+                await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + pageId, {
+                    method: 'PUT',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify({ sort_order: parseInt(sortOrder) })
+                });
             } catch (err) { console.error(err); }
         }
 
@@ -1300,6 +1392,8 @@
                     document.getElementById('page-title').value = page.title;
                     document.getElementById('page-slug').value = page.slug;
                     document.getElementById('page-homepage').checked = page.is_homepage;
+                    document.getElementById('page-show-in-nav').checked = page.show_in_nav !== false;
+                    document.getElementById('page-sort-order').value = page.sort_order || 0;
                     document.getElementById('page-editor-title').textContent = 'Edit Page';
                     
                     if (page.content && page.content.length > 0) {
@@ -1350,10 +1444,12 @@
             const slug = document.getElementById('page-slug').value;
             const content = buildPageContentFromBlocks();
             const is_homepage = document.getElementById('page-homepage').checked;
+            const show_in_nav = document.getElementById('page-show-in-nav').checked;
+            const sort_order = parseInt(document.getElementById('page-sort-order').value) || 0;
             
             if (!title) { showToast('Please enter a title', 'error'); return; }
             
-            const payload = { title, slug: slug || null, content, is_homepage };
+            const payload = { title, slug: slug || null, content, is_homepage, show_in_nav, sort_order };
             
             try {
                 let res;

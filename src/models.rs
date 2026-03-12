@@ -58,6 +58,8 @@ pub struct Page {
     pub slug: String,
     pub content: serde_json::Value,
     pub is_homepage: bool,
+    pub show_in_nav: bool,
+    pub sort_order: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub seo: serde_json::Value,

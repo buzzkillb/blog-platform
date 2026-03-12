@@ -121,7 +121,39 @@ async fn main() {
                     let file_path = format!("output/{}", path);
                     if std::path::Path::new(&file_path).exists() {
                         if let Ok(content) = tokio::fs::read_to_string(&file_path).await {
-                            return axum::response::Html(content).into_response();
+                            // Determine content type based on extension
+                            let content_type = if path.ends_with(".xml") {
+                                if path.contains("sitemap") {
+                                    "application/xml"
+                                } else if path.contains("feed") || path.contains("rss") {
+                                    "application/rss+xml"
+                                } else {
+                                    "application/xml"
+                                }
+                            } else if path.ends_with(".json") {
+                                "application/json"
+                            } else if path.ends_with(".css") {
+                                "text/css"
+                            } else if path.ends_with(".js") {
+                                "application/javascript"
+                            } else if path.ends_with(".png") {
+                                "image/png"
+                            } else if path.ends_with(".jpg") || path.ends_with(".jpeg") {
+                                "image/jpeg"
+                            } else if path.ends_with(".svg") {
+                                "image/svg+xml"
+                            } else if path.ends_with(".ico") {
+                                "image/x-icon"
+                            } else {
+                                "text/html"
+                            };
+                            
+                            return (
+                                StatusCode::OK,
+                                [(axum::http::header::CONTENT_TYPE, content_type)],
+                                content,
+                            )
+                            .into_response();
                         }
                     }
                     axum::response::Html("Not found").into_response()
@@ -278,6 +310,8 @@ async fn run_migrations(db: &sqlx::PgPool) {
             slug VARCHAR(500) NOT NULL,
             content JSONB NOT NULL DEFAULT '[]',
             is_homepage BOOLEAN DEFAULT FALSE,
+            show_in_nav BOOLEAN DEFAULT TRUE,
+            sort_order INTEGER DEFAULT 0,
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW(),
             seo JSONB DEFAULT '{}',
@@ -287,6 +321,15 @@ async fn run_migrations(db: &sqlx::PgPool) {
     .execute(db)
     .await
     .expect("Failed to create pages table");
+
+    sqlx::query("ALTER TABLE pages ADD COLUMN IF NOT EXISTS show_in_nav BOOLEAN DEFAULT TRUE")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("ALTER TABLE pages ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0")
+        .execute(db)
+        .await
+        .ok();
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS media (

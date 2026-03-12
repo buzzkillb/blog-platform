@@ -26,13 +26,15 @@ pub async fn list(
             String,
             serde_json::Value,
             bool,
+            bool,
+            i32,
             chrono::DateTime<chrono::Utc>,
             chrono::DateTime<chrono::Utc>,
             serde_json::Value,
         ),
     >(
-        "SELECT id, site_id, title, slug, content, is_homepage, created_at, updated_at, seo 
-         FROM pages WHERE site_id = $1 ORDER BY is_homepage DESC, created_at DESC",
+        "SELECT id, site_id, title, slug, content, is_homepage, show_in_nav, sort_order, created_at, updated_at, seo 
+         FROM pages WHERE site_id = $1 ORDER BY is_homepage DESC, sort_order ASC, created_at DESC",
     )
     .bind(site_id)
     .fetch_all(&state.db)
@@ -48,9 +50,11 @@ pub async fn list(
             slug: p.3,
             content: p.4,
             is_homepage: p.5,
-            created_at: p.6,
-            updated_at: p.7,
-            seo: p.8,
+            show_in_nav: p.6,
+            sort_order: p.7,
+            created_at: p.8,
+            updated_at: p.9,
+            seo: p.10,
         })
         .collect();
 
@@ -74,12 +78,14 @@ pub async fn get(
             String,
             serde_json::Value,
             bool,
+            bool,
+            i32,
             chrono::DateTime<chrono::Utc>,
             chrono::DateTime<chrono::Utc>,
             serde_json::Value,
         ),
     >(
-        "SELECT id, site_id, title, slug, content, is_homepage, created_at, updated_at, seo 
+        "SELECT id, site_id, title, slug, content, is_homepage, show_in_nav, sort_order, created_at, updated_at, seo 
          FROM pages WHERE site_id = $1 AND id = $2",
     )
     .bind(site_id)
@@ -95,9 +101,11 @@ pub async fn get(
         slug: page.3,
         content: page.4,
         is_homepage: page.5,
-        created_at: page.6,
-        updated_at: page.7,
-        seo: page.8,
+        show_in_nav: page.6,
+        sort_order: page.7,
+        created_at: page.8,
+        updated_at: page.9,
+        seo: page.10,
     }))
 }
 
@@ -119,6 +127,8 @@ pub async fn create(
         .unwrap_or_else(|| generate_slug(&payload.title));
 
     let is_homepage = payload.is_homepage.unwrap_or(false);
+    let show_in_nav = payload.show_in_nav.unwrap_or(true);
+    let sort_order = payload.sort_order.unwrap_or(0);
 
     if is_homepage {
         sqlx::query("UPDATE pages SET is_homepage = false WHERE site_id = $1")
@@ -133,16 +143,18 @@ pub async fn create(
 
     let result = sqlx::query_as::<_, (
         Uuid, Uuid, String, String, serde_json::Value, bool,
-        chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
+        bool, i32, chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>, serde_json::Value
     )>(
-        "INSERT INTO pages (site_id, title, slug, content, is_homepage, seo) VALUES ($1, $2, $3, $4, $5, $6) 
-         RETURNING id, site_id, title, slug, content, is_homepage, created_at, updated_at, seo"
+        "INSERT INTO pages (site_id, title, slug, content, is_homepage, show_in_nav, sort_order, seo) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+         RETURNING id, site_id, title, slug, content, is_homepage, show_in_nav, sort_order, created_at, updated_at, seo"
     )
     .bind(site_id)
     .bind(&payload.title)
     .bind(&slug)
     .bind(&content)
     .bind(is_homepage)
+    .bind(show_in_nav)
+    .bind(sort_order)
     .bind(&seo)
     .fetch_one(&state.db)
     .await
@@ -155,9 +167,11 @@ pub async fn create(
         slug: result.3,
         content: result.4,
         is_homepage: result.5,
-        created_at: result.6,
-        updated_at: result.7,
-        seo: result.8,
+        show_in_nav: result.6,
+        sort_order: result.7,
+        created_at: result.8,
+        updated_at: result.9,
+        seo: result.10,
     };
 
     Ok((StatusCode::CREATED, Json(page)))
@@ -184,6 +198,8 @@ pub async fn update(
     let title = payload.title.clone();
     let content = payload.content.clone();
     let is_homepage = payload.is_homepage;
+    let show_in_nav = payload.show_in_nav;
+    let sort_order = payload.sort_order;
     let seo = payload.seo.clone();
 
     let result = sqlx::query_as::<
@@ -195,6 +211,8 @@ pub async fn update(
             String,
             serde_json::Value,
             bool,
+            bool,
+            i32,
             chrono::DateTime<chrono::Utc>,
             chrono::DateTime<chrono::Utc>,
             serde_json::Value,
@@ -204,16 +222,20 @@ pub async fn update(
             title = COALESCE($3, title),
             content = COALESCE($4, content),
             is_homepage = COALESCE($5, is_homepage),
-            seo = COALESCE($6, seo),
+            show_in_nav = COALESCE($6, show_in_nav),
+            sort_order = COALESCE($7, sort_order),
+            seo = COALESCE($8, seo),
             updated_at = NOW()
          WHERE site_id = $1 AND id = $2
-         RETURNING id, site_id, title, slug, content, is_homepage, created_at, updated_at, seo",
+         RETURNING id, site_id, title, slug, content, is_homepage, show_in_nav, sort_order, created_at, updated_at, seo",
     )
     .bind(site_id)
     .bind(id)
     .bind(title)
     .bind(content)
     .bind(is_homepage)
+    .bind(show_in_nav)
+    .bind(sort_order)
     .bind(seo)
     .fetch_one(&state.db)
     .await
@@ -226,9 +248,11 @@ pub async fn update(
         slug: result.3,
         content: result.4,
         is_homepage: result.5,
-        created_at: result.6,
-        updated_at: result.7,
-        seo: result.8,
+        show_in_nav: result.6,
+        sort_order: result.7,
+        created_at: result.8,
+        updated_at: result.9,
+        seo: result.10,
     }))
 }
 

@@ -109,6 +109,8 @@ pub struct CreatePageRequest {
     pub slug: Option<String>,
     pub content: Option<serde_json::Value>,
     pub is_homepage: Option<bool>,
+    pub show_in_nav: Option<bool>,
+    pub sort_order: Option<i32>,
     pub seo: Option<serde_json::Value>,
 }
 
@@ -118,5 +120,7 @@ pub struct UpdatePageRequest {
     pub slug: Option<String>,
     pub content: Option<serde_json::Value>,
     pub is_homepage: Option<bool>,
+    pub show_in_nav: Option<bool>,
+    pub sort_order: Option<i32>,
     pub seo: Option<serde_json::Value>,
 }

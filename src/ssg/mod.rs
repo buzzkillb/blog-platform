@@ -26,7 +26,7 @@ pub async fn build_site(
     site_id: Uuid,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let site_row = sqlx::query(
-        "SELECT id, name, description, logo_url, favicon_url, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address FROM sites WHERE id = $1"
+        "SELECT id, name, description, logo_url, favicon_url, footer_text, social_links, contact_phone, contact_email, contact_address FROM sites WHERE id = $1"
     )
     .bind(site_id)
     .fetch_one(db)
@@ -37,9 +37,6 @@ pub async fn build_site(
     let site_description: Option<String> = site_row.get("description");
     let logo_url: Option<String> = site_row.get("logo_url");
     let favicon_url: Option<String> = site_row.get("favicon_url");
-    let nav_links: serde_json::Value = site_row
-        .get::<Option<serde_json::Value>, _>("nav_links")
-        .unwrap_or(serde_json::json!([]));
     let footer_text: Option<String> = site_row.get("footer_text");
     let social_links: serde_json::Value = site_row
         .get::<Option<serde_json::Value>, _>("social_links")
@@ -57,12 +54,24 @@ pub async fn build_site(
     .fetch_all(db)
     .await?;
 
-    let pages = sqlx::query_as::<_, (String, String, serde_json::Value, bool)>(
-        "SELECT title, slug, content, is_homepage FROM pages WHERE site_id = $1",
+    let pages = sqlx::query_as::<_, (String, String, serde_json::Value, bool, bool, i32)>(
+        "SELECT title, slug, content, is_homepage, show_in_nav, sort_order FROM pages WHERE site_id = $1 ORDER BY sort_order ASC",
     )
     .bind(site_id)
     .fetch_all(db)
     .await?;
+
+    // Build nav_links from pages with show_in_nav = true
+    let nav_pages: Vec<_> = pages.iter().filter(|p| p.4).collect();
+    let nav_links: Vec<serde_json::Value> = nav_pages
+        .iter()
+        .map(|p| {
+            serde_json::json!({
+                "label": p.0,
+                "url": format!("/{}", p.1)
+            })
+        })
+        .collect();
 
     let mut env = Environment::new();
 
