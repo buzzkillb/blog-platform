@@ -101,7 +101,7 @@ async fn main() {
         .route("/health", get(health_check))
         .route("/admin", get(admin_handler))
         .route("/admin/{*path}", get(admin_handler))
-        .route("/", get(|State(state): State<AppState>| async move {
+        .route("/", get(|State(_state): State<AppState>| async move {
             let html_path = "output/index.html";
             if std::path::Path::new(html_path).exists() {
                 if let Ok(content) = tokio::fs::read_to_string(html_path).await {
@@ -111,9 +111,17 @@ async fn main() {
             axum::response::Html("Not found").into_response()
         }))
         .route("/{*path}", get(|axum::extract::Path(path): axum::extract::Path<String>| async move {
+            // Try .html first
             let html_path = format!("output/{}.html", path);
             if std::path::Path::new(&html_path).exists() {
                 if let Ok(content) = tokio::fs::read_to_string(&html_path).await {
+                    return axum::response::Html(content).into_response();
+                }
+            }
+            // Try exact file match (for sitemap.xml, feed.xml, etc)
+            let file_path = format!("output/{}", path);
+            if std::path::Path::new(&file_path).exists() {
+                if let Ok(content) = tokio::fs::read_to_string(&file_path).await {
                     return axum::response::Html(content).into_response();
                 }
             }

@@ -75,6 +75,26 @@ pub async fn build_site(
     // Load index last since it extends base
     env.add_template("index", &index_html)?;
 
+    let sitemap_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{% for post in posts %}
+  <url>
+    <loc>https://example.com/{{ post }}</loc>
+    <changefreq>weekly</changefreq>
+  </url>
+{% endfor %}
+</urlset>"#;
+    env.add_template("sitemap", sitemap_xml)?;
+
+    let feed_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+  <title>Blog</title>
+  <link>https://example.com</link>
+</channel>
+</rss>"#;
+    env.add_template("feed", feed_xml)?;
+
     let posts_data: Vec<serde_json::Value> = posts
         .iter()
         .map(|p| {
