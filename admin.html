@@ -1316,8 +1316,8 @@
                                     <button type="button" id="navbtn-${page.id}" class="px-3 py-1 rounded text-xs font-medium ${page.show_in_nav === false ? 'bg-gray-600' : 'bg-green-600'} text-white">
                                         ${page.show_in_nav === false ? 'Off' : 'On'}
                                     </button>
-                                    <button type="button" onclick="doMove(${index}, -1)" class="p-2 text-gray-400 hover:text-white">↑</button>
-                                    <button type="button" onclick="doMove(${index}, 1)" class="p-2 text-gray-400 hover:text-white">↓</button>
+                                    <button type="button" onclick="doMove('${page.id}', -1)" class="p-2 text-gray-400 hover:text-white">↑</button>
+                                    <button type="button" onclick="doMove('${page.id}', 1)" class="p-2 text-gray-400 hover:text-white">↓</button>
                                     <button onclick="editPage('${page.id}')" class="btn-secondary text-white px-3 py-1 rounded">Edit</button>
                                     <button onclick="deletePage('${page.id}')" class="bg-red-600 text-white px-3 py-1 rounded">Delete</button>
                                 </div>
@@ -1346,29 +1346,41 @@
             } catch (err) { console.error(err); }
         }
         
-        function doMove(currentIndex, direction) {
-            fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
-                headers: { 'Authorization': 'Bearer ' + authToken }
-            }).then(function(res) { return res.json(); })
-            .then(function(pages) {
+        async function doMove(pageId, direction) {
+            try {
+                if (!currentSite) { alert('No site selected'); return; }
+                
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                const pages = await res.json();
                 pages.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-                var newIndex = currentIndex + direction;
+                
+                const currentIndex = pages.findIndex(p => p.id === pageId);
+                if (currentIndex === -1) return;
+                
+                const newIndex = currentIndex + direction;
                 if (newIndex < 0 || newIndex >= pages.length) return;
-                var page1 = pages[currentIndex];
-                var page2 = pages[newIndex];
-                var order1 = page1.sort_order || 0;
-                var order2 = page2.sort_order || 0;
-                fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + page1.id, {
+                
+                const page1 = pages[currentIndex];
+                const page2 = pages[newIndex];
+                const order1 = page1.sort_order || 0;
+                const order2 = page2.sort_order || 0;
+                
+                await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + page1.id, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
                     body: JSON.stringify({ sort_order: order2 })
                 });
-                fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + page2.id, {
+                
+                await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + page2.id, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
                     body: JSON.stringify({ sort_order: order1 })
-                }).then(function() { loadPages(); });
-            });
+                });
+                
+                loadPages();
+            } catch (err) { console.error(err); alert('Error: ' + err.message); }
         }
 
         async function editPage(id) {
