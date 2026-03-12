@@ -61,8 +61,8 @@ pub async fn build_site(
     .fetch_all(db)
     .await?;
 
-    // Build nav_links from pages with show_in_nav = true
-    let nav_pages: Vec<_> = pages.iter().filter(|p| p.4).collect();
+    // Build nav_links from pages with show_in_nav = true (excluding homepage which is always at /)
+    let nav_pages: Vec<_> = pages.iter().filter(|p| p.4 && !p.3).collect();
     let nav_links: Vec<serde_json::Value> = nav_pages
         .iter()
         .map(|p| {
