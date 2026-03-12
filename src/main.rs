@@ -10,13 +10,7 @@ pub use errors::{
 pub use models::{ContactSubmission, Media, Page, Post, Site, User};
 pub use state::AppState;
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    routing::get,
-    Router,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Router};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use std::net::SocketAddr;
@@ -355,7 +349,7 @@ async fn seed_default_pages(db: &sqlx::PgPool) {
 
     if let Ok(sites) = sites {
         let site_count = sites.len();
-        
+
         let homepage_content = serde_json::json!([
             {"block_type": "hero", "content": {"title": "Welcome to Our Site", "subtitle": "Your amazing blog starts here", "ctaText": "Read More", "ctaLink": "/blog"}}
         ]);
@@ -371,7 +365,6 @@ async fn seed_default_pages(db: &sqlx::PgPool) {
         ]);
 
         for (site_id,) in sites {
-
             sqlx::query(
                 "INSERT INTO pages (site_id, title, slug, content, is_homepage) VALUES ($1, $2, $3, $4, $5)"
             )

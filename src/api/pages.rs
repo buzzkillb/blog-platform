@@ -7,7 +7,7 @@ use axum::{
 use uuid::Uuid;
 
 use crate::api::auth::{require_auth, require_site_member};
-use crate::{ApiError, AppState, CreatePageRequest, Page, UpdatePageRequest, util::generate_slug};
+use crate::{util::generate_slug, ApiError, AppState, CreatePageRequest, Page, UpdatePageRequest};
 
 pub async fn list(
     State(state): State<AppState>,
@@ -114,7 +114,9 @@ pub async fn create(
         return Err(ApiError::new("Title is required"));
     }
 
-    let slug = payload.slug.unwrap_or_else(|| generate_slug(&payload.title));
+    let slug = payload
+        .slug
+        .unwrap_or_else(|| generate_slug(&payload.title));
 
     let is_homepage = payload.is_homepage.unwrap_or(false);
 

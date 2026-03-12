@@ -235,7 +235,7 @@ pub async fn build_site(
     for post in &posts {
         // Use featured_image from DB, or extract first image from content
         let featured_img = post.4.clone().or_else(|| extract_first_image(&post.2));
-        
+
         let post_ctx = context! {
             site_name => site_name,
             site_description => site_description,
