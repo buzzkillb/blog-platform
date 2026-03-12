@@ -1292,29 +1292,31 @@
                                     <h3 class="text-white font-medium">${page.title}</h3>
                                     <p class="text-gray-400 text-sm">/${page.slug}${page.is_homepage ? ' (Homepage)' : ''}</p>
                                 </div>
-                                <div class="flex items-center gap-4">
-                                    <label class="flex items-center gap-2 cursor-pointer">
-                                        <span class="text-gray-400 text-sm">Nav</span>
-                                        <div class="relative">
-                                            <input type="checkbox" 
-                                                id="toggle-${page.id}"
-                                                ${page.show_in_nav !== false ? 'checked' : ''} 
-                                                onchange="togglePageNav('${page.id}', this.checked)"
-                                                class="sr-only peer">
-                                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600 cursor-pointer" 
-                                                onclick="document.getElementById('toggle-${page.id}').click()"></div>
-                                        </div>
-                                    </label>
-                                    <div class="flex items-center gap-1">
-                                        <button onclick="movePage('${page.id}', ${index}, -1)" class="p-1 text-gray-500 hover:text-white ${index === 0 ? 'opacity-30 cursor-not-allowed' : ''}" ${index === 0 ? 'disabled' : ''}>↑</button>
-                                        <button onclick="movePage('${page.id}', ${index}, 1)" class="p-1 text-gray-500 hover:text-white ${index === pages.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" ${index === pages.length - 1 ? 'disabled' : ''}>↓</button>
-                                    </div>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="toggleNav('${page.id}', ${page.show_in_nav === false})" class="px-3 py-1 rounded text-xs font-medium ${page.show_in_nav === false ? 'bg-gray-600' : 'bg-green-600'} text-white">
+                                        ${page.show_in_nav === false ? 'Off' : 'On'}
+                                    </button>
+                                    <button onclick="movePage('${page.id}', ${index}, -1)" class="p-2 text-gray-400 hover:text-white">↑</button>
+                                    <button onclick="movePage('${page.id}', ${index}, 1)" class="p-2 text-gray-400 hover:text-white">↓</button>
                                     <button onclick="editPage('${page.id}')" class="btn-secondary text-white px-3 py-1 rounded">Edit</button>
                                     <button onclick="deletePage('${page.id}')" class="bg-red-600 text-white px-3 py-1 rounded">Delete</button>
                                 </div>
                             </div>
                         `).join('');
                     }
+                }
+            } catch (err) { console.error(err); }
+        }
+        
+        async function toggleNav(pageId, newValue) {
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + pageId, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                    body: JSON.stringify({ show_in_nav: newValue })
+                });
+                if (res.ok) {
+                    loadPages();
                 }
             } catch (err) { console.error(err); }
         }
@@ -1350,42 +1352,6 @@
                     body: JSON.stringify({ sort_order: order1 })
                 });
                 
-                loadPages();
-            } catch (err) { 
-                console.error(err);
-                showToast('Failed to move page: ' + err.message, 'error');
-            }
-        }
-        
-        async function togglePageNav(pageId, showInNav) {
-            try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + pageId, {
-                    method: 'PUT',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + authToken
-                    },
-                    body: JSON.stringify({ show_in_nav: showInNav })
-                });
-                if (res.ok) {
-                    showToast(showInNav ? 'Added to navigation!' : 'Removed from navigation!');
-                    loadPages();
-                } else {
-                    showToast('Failed to update', 'error');
-                }
-            } catch (err) { showToast('Error: ' + err.message, 'error'); }
-        }
-        
-        async function updatePageSortOrder(pageId, sortOrder) {
-            try {
-                await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + pageId, {
-                    method: 'PUT',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + authToken
-                    },
-                    body: JSON.stringify({ sort_order: parseInt(sortOrder) })
-                });
                 loadPages();
             } catch (err) { console.error(err); }
         }
