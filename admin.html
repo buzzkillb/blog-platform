@@ -433,6 +433,22 @@
             render();
         }
 
+        async function buildSite() {
+            if (!currentSite) return;
+            try {
+                showToast('Building site...');
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/build', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (res.ok) {
+                    showToast('Site built successfully!');
+                } else {
+                    showToast('Failed to build site', 'error');
+                }
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }
+        
         function logout() {
             currentUser = null;
             currentSite = null;
@@ -1573,7 +1589,10 @@
                     
                     document.getElementById('settings-content').innerHTML = `
                         <div class="card p-6 rounded-lg space-y-6">
-                            <h2 class="text-xl font-bold text-white">Header & Footer</h2>
+                            <div class="flex justify-between items-center">
+                                <h2 class="text-xl font-bold text-white">Header & Footer</h2>
+                                <button onclick="buildSite()" class="btn-primary text-white px-4 py-2 rounded">Build Site</button>
+                            </div>
                             
                             <div>
                                 <label class="block text-gray-400 mb-2">Site Name</label>
