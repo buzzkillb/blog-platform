@@ -1329,8 +1329,6 @@
                             const btn = document.getElementById('navbtn-' + page.id);
                             if (btn) {
                                 btn.onclick = function() {
-                                    console.log('toggleNav clicked', page.id, 'currentSite:', currentSite);
-                                    if (!currentSite) { alert('No site selected'); return; }
                                     var newVal = page.show_in_nav !== false ? false : true;
                                     var url = API_BASE + '/api/sites/' + currentSite + '/pages/' + page.id;
                                     fetch(url, {
@@ -1349,10 +1347,7 @@
         }
         
         async function doMove(pageId, direction) {
-            console.log('doMove called', pageId, direction, 'currentSite:', currentSite, 'authToken:', authToken ? 'exists' : 'missing');
-            if (!currentSite) { alert('No site selected. Go to Sites tab and select a site.'); return; }
-            if (!authToken) { alert('Not logged in'); return; }
-            
+            if (!currentSite) { alert('No site selected'); return; }
             try {
                 
                 const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
