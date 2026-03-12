@@ -1293,67 +1293,62 @@
                                     <p class="text-gray-400 text-sm">/${page.slug}${page.is_homepage ? ' (Homepage)' : ''}</p>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <button onclick="toggleNav('${page.id}', ${page.show_in_nav === false})" class="px-3 py-1 rounded text-xs font-medium ${page.show_in_nav === false ? 'bg-gray-600' : 'bg-green-600'} text-white">
+                                    <button type="button" id="navbtn-${page.id}" class="px-3 py-1 rounded text-xs font-medium ${page.show_in_nav === false ? 'bg-gray-600' : 'bg-green-600'} text-white">
                                         ${page.show_in_nav === false ? 'Off' : 'On'}
                                     </button>
-                                    <button onclick="movePage('${page.id}', ${index}, -1)" class="p-2 text-gray-400 hover:text-white">↑</button>
-                                    <button onclick="movePage('${page.id}', ${index}, 1)" class="p-2 text-gray-400 hover:text-white">↓</button>
+                                    <button type="button" onclick="doMove(${index}, -1)" class="p-2 text-gray-400 hover:text-white">↑</button>
+                                    <button type="button" onclick="doMove(${index}, 1)" class="p-2 text-gray-400 hover:text-white">↓</button>
                                     <button onclick="editPage('${page.id}')" class="btn-secondary text-white px-3 py-1 rounded">Edit</button>
                                     <button onclick="deletePage('${page.id}')" class="bg-red-600 text-white px-3 py-1 rounded">Delete</button>
                                 </div>
                             </div>
                         `).join('');
+                        
+                        // Attach event handlers after rendering
+                        pages.forEach((page, index) => {
+                            const btn = document.getElementById('navbtn-' + page.id);
+                            if (btn) {
+                                btn.onclick = function() {
+                                    var newVal = page.show_in_nav !== false ? false : true;
+                                    var url = API_BASE + '/api/sites/' + currentSite + '/pages/' + page.id;
+                                    fetch(url, {
+                                        method: 'PUT',
+                                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                                        body: JSON.stringify({ show_in_nav: newVal })
+                                    }).then(function(res) {
+                                        if (res.ok) loadPages();
+                                    });
+                                };
+                            }
+                        });
                     }
                 }
             } catch (err) { console.error(err); }
         }
         
-        async function toggleNav(pageId, newValue) {
-            try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + pageId, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
-                    body: JSON.stringify({ show_in_nav: newValue })
-                });
-                if (res.ok) {
-                    loadPages();
-                }
-            } catch (err) { console.error(err); }
-        }
-        
-        async function movePage(pageId, currentIndex, direction) {
-            try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                if (!res.ok) return;
-                
-                const pages = await res.json();
+        function doMove(currentIndex, direction) {
+            fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
+                headers: { 'Authorization': 'Bearer ' + authToken }
+            }).then(function(res) { return res.json(); })
+            .then(function(pages) {
                 pages.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-                
-                const newIndex = currentIndex + direction;
+                var newIndex = currentIndex + direction;
                 if (newIndex < 0 || newIndex >= pages.length) return;
-                
-                // Swap sort orders
-                const page1 = pages[currentIndex];
-                const page2 = pages[newIndex];
-                const order1 = page1.sort_order || 0;
-                const order2 = page2.sort_order || 0;
-                
-                await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + page1.id, {
+                var page1 = pages[currentIndex];
+                var page2 = pages[newIndex];
+                var order1 = page1.sort_order || 0;
+                var order2 = page2.sort_order || 0;
+                fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + page1.id, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
                     body: JSON.stringify({ sort_order: order2 })
                 });
-                
-                await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + page2.id, {
+                fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + page2.id, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
                     body: JSON.stringify({ sort_order: order1 })
-                });
-                
-                loadPages();
-            } catch (err) { console.error(err); }
+                }).then(function() { loadPages(); });
+            });
         }
 
         async function editPage(id) {
