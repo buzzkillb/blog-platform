@@ -132,7 +132,7 @@ pub async fn build_site(
     let index_html = index_template.render(ctx)?;
     std::fs::write(output_dir.join("index.html"), index_html)?;
 
-    // Generate blog listing page
+    // Generate blog listing page using page template for consistent styling
     let blog_ctx = context! {
         site_name => site_name,
         site_description => site_description,
@@ -144,8 +144,10 @@ pub async fn build_site(
         contact_email => contact_email,
         contact_address => contact_address,
         posts => posts_data.clone(),
+        title => "Blog",
     };
-    let blog_html = index_template.render(blog_ctx)?;
+    let page_template = env.get_template("page")?;
+    let blog_html = page_template.render(blog_ctx)?;
     std::fs::write(output_dir.join("blog.html"), blog_html)?;
 
     for post in &posts {
@@ -167,7 +169,7 @@ pub async fn build_site(
             published_at => post.5.format("%Y-%m-%d").to_string(),
             url => format!("/{}", post.1),
         };
-        let post_template = env.get_template("post")?;
+        let post_template = env.get_template("page")?;
         let post_html = post_template.render(post_ctx)?;
         std::fs::write(output_dir.join(format!("{}.html", post.1)), post_html)?;
     }
