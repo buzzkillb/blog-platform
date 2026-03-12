@@ -26,7 +26,7 @@ pub async fn build_site(
     site_id: Uuid,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let site_row = sqlx::query(
-        "SELECT id, name, description, logo_url, favicon_url, footer_text, social_links, contact_phone, contact_email, contact_address, subdomain, custom_domain FROM sites WHERE id = $1"
+        "SELECT id, name, description, logo_url, favicon_url, footer_text, social_links, contact_phone, contact_email, contact_address, custom_domain FROM sites WHERE id = $1"
     )
     .bind(site_id)
     .fetch_one(db)
@@ -44,18 +44,20 @@ pub async fn build_site(
     let contact_phone: Option<String> = site_row.get("contact_phone");
     let contact_email: Option<String> = site_row.get("contact_email");
     let contact_address: Option<String> = site_row.get("contact_address");
-    let subdomain: Option<String> = site_row.get("subdomain");
-    let custom_domain: Option<String> = site_row.get("custom_domain");
+    let domain: Option<String> = site_row.get("custom_domain");
 
-    // Build site URL
-    #[allow(unused_variables)]
-    let site_url = if let Some(domain) = custom_domain {
-        format!("https://{}", domain)
-    } else if let Some(sub) = subdomain {
-        format!("https://{}.example.com", sub)
+    // Build site URL - use custom_domain as the primary domain
+    let site_url = if let Some(d) = domain {
+        println!("DEBUG: domain from DB: '{}'", d);
+        if d.starts_with("http") {
+            d
+        } else {
+            format!("https://{}", d)
+        }
     } else {
         "https://example.com".to_string()
     };
+    println!("DEBUG: site_url: '{}'", site_url);
 
     let posts = sqlx::query_as::<_, (
         String, String, serde_json::Value, Option<String>, Option<String>, chrono::DateTime<chrono::Utc>
@@ -105,8 +107,6 @@ pub async fn build_site(
     env.add_template("post.html", &post_html)?;
     env.add_template("page.html", &page_html)?;
     env.add_template("index.html", &index_html)?;
-
-    let site_url = std::env::var("SITE_URL").unwrap_or_else(|_| "https://example.com".to_string());
 
     let sitemap_xml = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -328,7 +328,7 @@ pub async fn build_site(
 
     // Collect page slugs for sitemap
     let page_slugs: Vec<&str> = pages.iter().map(|p| p.1.as_str()).collect();
-    
+
     let sitemap_ctx = context! {
         site_url => site_url,
         pages => page_slugs,

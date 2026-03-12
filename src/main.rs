@@ -156,11 +156,7 @@ async fn main() {
                                 .into_response();
                         }
                     }
-                    (
-                        StatusCode::NOT_FOUND,
-                        axum::response::Html("Not found"),
-                    )
-                    .into_response()
+                    (StatusCode::NOT_FOUND, axum::response::Html("Not found")).into_response()
                 },
             ),
         )
