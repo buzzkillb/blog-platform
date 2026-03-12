@@ -1418,6 +1418,7 @@
             const sort_order = parseInt(document.getElementById('page-sort-order').value) || 0;
             
             if (!title) { showToast('Please enter a title', 'error'); return; }
+            if (!currentSite || currentSite === 'null') { showToast('No site selected', 'error'); return; }
             
             const payload = { title, slug: slug || null, content, is_homepage, show_in_nav, sort_order };
             
