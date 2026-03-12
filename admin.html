@@ -474,7 +474,7 @@
                             </nav>
                         </aside>
                         <main class="flex-1 p-6">
-                            ${currentView==='settings'?renderSettings():currentView==='posts'?renderPosts():currentView==='pages'?renderPages():currentView==='media'?renderMedia():renderContact()}
+                            ${currentView==='settings'?renderSettings():currentView==='sites'?renderSitesInDashboard():currentView==='posts'?renderPosts():currentView==='pages'?renderPages():currentView==='media'?renderMedia():renderContact()}
                         </main>
                     </div>
                 </div>
@@ -488,6 +488,7 @@
 
         function afterRender() {
             if (currentView === 'settings') loadSiteSettings();
+            else if (currentView === 'sites') loadSites();
             else if (currentView === 'posts') loadPosts();
             else if (currentView === 'pages') loadPages();
             else if (currentView === 'media') loadMedia();
