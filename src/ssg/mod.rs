@@ -86,19 +86,19 @@ pub async fn build_site(
     <priority>1.0</priority>
 </url>
 <url>
-    <loc>{}</loc>
-    <changefreq>weekly</changefreq>
+    <loc>{}/blog</loc>
+    <changefreq>daily</changefreq>
     <priority>0.9</priority>
 </url>
 <url>
     <loc>{}/about</loc>
     <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.6</priority>
 </url>
 <url>
     <loc>{}/contact</loc>
     <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.6</priority>
 </url>
 {}
 </urlset>"#,
