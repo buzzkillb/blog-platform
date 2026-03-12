@@ -2,6 +2,25 @@ use minijinja::{context, Environment};
 use sqlx::Row;
 use uuid::Uuid;
 
+fn extract_first_image(content: &serde_json::Value) -> Option<String> {
+    if let Some(blocks) = content.as_array() {
+        for block in blocks {
+            if let Some(block_type) = block.get("type").and_then(|t| t.as_str()) {
+                if block_type == "image" {
+                    if let Some(img_content) = block.get("content") {
+                        if let Some(url) = img_content.get("url").and_then(|u| u.as_str()) {
+                            if !url.is_empty() {
+                                return Some(url.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 pub async fn build_site(
     db: &sqlx::PgPool,
     site_id: Uuid,
@@ -221,6 +240,9 @@ pub async fn build_site(
     std::fs::write(output_dir.join("blog.html"), blog_html)?;
 
     for post in &posts {
+        // Use featured_image from DB, or extract first image from content
+        let featured_img = post.4.clone().or_else(|| extract_first_image(&post.2));
+        
         let post_ctx = context! {
             site_name => site_name,
             site_description => site_description,
@@ -235,7 +257,7 @@ pub async fn build_site(
             slug => &post.1,
             content => render_blocks(&post.2),
             excerpt => &post.3,
-            featured_image => &post.4,
+            featured_image => featured_img,
             published_at => post.5.format("%Y-%m-%d").to_string(),
             url => format!("/blog/{}", post.1),
         };
