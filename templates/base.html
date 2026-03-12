@@ -128,6 +128,10 @@
 {% block content %}{% endblock %}
         </div>
     </main>
+    <nav aria-label="Breadcrumb" class="container" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+        <a href="/">Home</a>
+        {% if title and title != site_name %} &gt; <a href="{{ url | default(value='/') }}">{{ title }}</a>{% endif %}
+    </nav>
     <footer>
         <div class="container">
             <div class="flex flex-col md:flex-row justify-between items-center gap-4">

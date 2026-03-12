@@ -75,25 +75,78 @@ pub async fn build_site(
     // Load index last since it extends base
     env.add_template("index", &index_html)?;
 
-    let sitemap_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-{% for post in posts %}
-  <url>
-    <loc>https://example.com/{{ post }}</loc>
-    <changefreq>weekly</changefreq>
-  </url>
-{% endfor %}
-</urlset>"#;
-    env.add_template("sitemap", sitemap_xml)?;
+    let site_url = std::env::var("SITE_URL").unwrap_or_else(|_| "https://example.com".to_string());
 
-    let feed_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
+    let sitemap_xml = format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<url>
+    <loc>{}/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+</url>
+<url>
+    <loc>{}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+</url>
+<url>
+    <loc>{}/about</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+</url>
+<url>
+    <loc>{}/contact</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+</url>
+{}
+</urlset>"#,
+        site_url,
+        site_url,
+        site_url,
+        site_url,
+        posts.iter().map(|p| format!(r#"<url>
+    <loc>{}/{}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+</url>"#, site_url, p.1)).collect::<Vec<_>>().join("\n")
+    );
+    env.add_template("sitemap", &sitemap_xml)?;
+
+    let feed_items: Vec<String> = posts.iter().map(|p| {
+        format!(r#"<item>
+        <title><![CDATA[{}]]></title>
+        <link>{}/{}</link>
+        <guid isPermaLink="true">{}/{}</guid>
+        <pubDate>{}</pubDate>
+        <description><![CDATA[{}]]></description>
+    </item>"#, 
+            p.0, site_url, p.1, site_url, p.1, 
+            p.5.format("%a, %d %b %Y %H:%M:%S +0000"),
+            p.3.as_deref().unwrap_or("")
+        )
+    }).collect();
+
+    let feed_xml = format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
 <channel>
-  <title>Blog</title>
-  <link>https://example.com</link>
+    <title>{}</title>
+    <link>{}</link>
+    <description>{}</description>
+    <language>en-us</language>
+    <lastBuildDate>{}</lastBuildDate>
+    <atom:link href="{}/feed.xml" rel="self" type="application/rss+xml"/>
+{}
 </channel>
-</rss>"#;
-    env.add_template("feed", feed_xml)?;
+</rss>"#,
+        site_name,
+        site_url,
+        site_description.as_deref().unwrap_or(&site_name),
+        chrono::Utc::now().format("%a, %d %b %Y %H:%M:%S +0000"),
+        site_url,
+        feed_items.join("\n")
+    );
+    env.add_template("feed", &feed_xml)?;
 
     let posts_data: Vec<serde_json::Value> = posts
         .iter()
