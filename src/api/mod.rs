@@ -4,9 +4,12 @@ pub mod pages;
 pub mod posts;
 pub mod sites;
 
+use crate::{ApiError, AppState};
 use axum::{
+    extract::{Path, State},
+    http::HeaderMap,
     routing::{get, post},
-    Router,
+    Json, Router,
 };
 
 pub fn routes() -> Router<crate::AppState> {
@@ -52,4 +55,29 @@ pub fn routes() -> Router<crate::AppState> {
             "/api/sites/{site_id}/contact",
             get(sites::list_contact_submissions),
         )
+        .route("/api/sites/{site_id}/build", post(build_site))
+}
+
+async fn build_site(
+    Path(site_id): Path<uuid::Uuid>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let current_user = auth::require_auth(State(state.clone()), headers)
+        .await
+        .map_err(|e| ApiError::new(e.message))?;
+
+    auth::require_site_member(&state, site_id, current_user.user_id)
+        .await
+        .map_err(|e| ApiError::new(e.message))?;
+
+    // Build the site
+    let db = state.db.clone();
+    tokio::spawn(async move {
+        if let Err(e) = crate::ssg::build_site(&db, site_id).await {
+            tracing::error!("Failed to build site: {}", e);
+        }
+    });
+
+    Ok(Json(serde_json::json!({ "message": "Site build started" })))
 }

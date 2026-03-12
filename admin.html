@@ -433,6 +433,22 @@
             render();
         }
 
+        async function buildSite() {
+            if (!currentSite) return;
+            try {
+                showToast('Building site...');
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/build', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (res.ok) {
+                    showToast('Site built successfully!');
+                } else {
+                    showToast('Failed to build site', 'error');
+                }
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }
+        
         function logout() {
             currentUser = null;
             currentSite = null;
@@ -456,6 +472,9 @@
                     <div class="flex">
                         <aside class="w-56 bg-gray-800 border-r border-gray-700 min-h-screen p-4">
                             <nav class="space-y-1">
+                                <button onclick="buildSite()" class="w-full text-left px-4 py-3 rounded bg-green-600 hover:bg-green-700 text-white font-medium mb-4">
+                                    <i class="fas fa-rocket w-6"></i> Build Site
+                                </button>
                                 <button onclick="switchView('settings')" class="w-full text-left px-4 py-2 rounded ${currentView==='settings'?'bg-gray-700 text-white':'text-gray-400 hover:bg-gray-700'}">
                                     <i class="fas fa-cog w-6"></i> Settings
                                 </button>
@@ -474,7 +493,7 @@
                             </nav>
                         </aside>
                         <main class="flex-1 p-6">
-                            ${currentView==='settings'?renderSettings():currentView==='posts'?renderPosts():currentView==='pages'?renderPages():currentView==='media'?renderMedia():renderContact()}
+                            ${currentView==='settings'?renderSettings():currentView==='sites'?renderSitesInDashboard():currentView==='posts'?renderPosts():currentView==='pages'?renderPages():currentView==='media'?renderMedia():renderContact()}
                         </main>
                     </div>
                 </div>
@@ -488,6 +507,7 @@
 
         function afterRender() {
             if (currentView === 'settings') loadSiteSettings();
+            else if (currentView === 'sites') loadSites();
             else if (currentView === 'posts') loadPosts();
             else if (currentView === 'pages') loadPages();
             else if (currentView === 'media') loadMedia();
@@ -662,6 +682,66 @@
             if (file && file.type.startsWith('image/')) {
                 handleImageUpload(blockId, file);
             }
+        }
+
+        async function handleLogoDrop(event) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('border-blue-500');
+            const file = event.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                handleLogoUpload(file);
+            }
+        }
+
+        async function handleFaviconDrop(event) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('border-blue-500');
+            const file = event.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                handleFaviconUpload(file);
+            }
+        }
+
+        async function handleLogoUpload(file) {
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/media', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + authToken },
+                    body: formData
+                });
+                if (res.ok) {
+                    const media = await res.json();
+                    document.getElementById('setting-logo-url').value = media.url;
+                    showToast('Logo uploaded!');
+                    loadSiteSettings();
+                } else {
+                    showToast('Upload failed', 'error');
+                }
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }
+
+        async function handleFaviconUpload(file) {
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/media', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + authToken },
+                    body: formData
+                });
+                if (res.ok) {
+                    const media = await res.json();
+                    document.getElementById('setting-favicon-url').value = media.url;
+                    showToast('Favicon uploaded!');
+                    loadSiteSettings();
+                } else {
+                    showToast('Upload failed', 'error');
+                }
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
         }
 
         function renderBlocks() {
@@ -1073,6 +1153,14 @@
                                 <input type="checkbox" id="page-homepage">
                                 <label class="text-gray-400">Set as homepage</label>
                             </div>
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" id="page-show-in-nav" checked>
+                                <label class="text-gray-400">Show in navigation</label>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <label class="text-gray-400">Sort order:</label>
+                                <input type="number" id="page-sort-order" value="0" class="w-20 bg-gray-700 text-white px-2 py-1 rounded border border-gray-600">
+                            </div>
                             <div class="flex gap-2 pt-4">
                                 <button onclick="savePage()" class="btn-primary text-white px-6 py-2 rounded">Save</button>
                             </div>
@@ -1091,6 +1179,8 @@
             document.getElementById('page-title').value = '';
             document.getElementById('page-slug').value = '';
             document.getElementById('page-homepage').checked = false;
+            document.getElementById('page-show-in-nav').checked = true;
+            document.getElementById('page-sort-order').value = 0;
             document.getElementById('page-editor-title').textContent = 'New Page';
             renderPageBlocks();
             document.getElementById('page-editor').classList.remove('hidden');
@@ -1212,21 +1302,73 @@
                     if (pages.length === 0) {
                         list.innerHTML = '<p class="text-gray-400">No pages yet.</p>';
                     } else {
-                        list.innerHTML = pages.map(page => `
-                            <div class="card p-4 rounded-lg flex justify-between items-center">
-                                <div>
+                        // Sort by sort_order
+                        pages.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+                        
+                        list.innerHTML = pages.map((page, index) => `
+                            <div class="card p-4 rounded-lg flex items-center gap-3" data-page-id="${page.id}" data-sort-order="${page.sort_order || 0}">
+                                <div class="text-gray-500 font-mono text-sm w-6">${index + 1}</div>
+                                <div class="flex-1">
                                     <h3 class="text-white font-medium">${page.title}</h3>
-                                    <p class="text-gray-400 text-sm">${page.slug}${page.is_homepage ? ' (Homepage)' : ''}</p>
+                                    <p class="text-gray-400 text-sm">/${page.slug}${page.is_homepage ? ' (Homepage)' : ''}</p>
                                 </div>
-                                <div class="flex gap-2">
+                                <div class="flex items-center gap-2">
+                                    <button type="button" id="navbtn-${page.id}" class="px-3 py-1 rounded text-xs font-medium ${page.show_in_nav === false ? 'bg-gray-600' : 'bg-green-600'} text-white">
+                                        ${page.show_in_nav === false ? 'Off' : 'On'}
+                                    </button>
+                                    <button type="button" onclick="doMove(${index}, -1)" class="p-2 text-gray-400 hover:text-white">↑</button>
+                                    <button type="button" onclick="doMove(${index}, 1)" class="p-2 text-gray-400 hover:text-white">↓</button>
                                     <button onclick="editPage('${page.id}')" class="btn-secondary text-white px-3 py-1 rounded">Edit</button>
                                     <button onclick="deletePage('${page.id}')" class="bg-red-600 text-white px-3 py-1 rounded">Delete</button>
                                 </div>
                             </div>
                         `).join('');
+                        
+                        // Attach event handlers after rendering
+                        pages.forEach((page, index) => {
+                            const btn = document.getElementById('navbtn-' + page.id);
+                            if (btn) {
+                                btn.onclick = function() {
+                                    var newVal = page.show_in_nav !== false ? false : true;
+                                    var url = API_BASE + '/api/sites/' + currentSite + '/pages/' + page.id;
+                                    fetch(url, {
+                                        method: 'PUT',
+                                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                                        body: JSON.stringify({ show_in_nav: newVal })
+                                    }).then(function(res) {
+                                        if (res.ok) loadPages();
+                                    });
+                                };
+                            }
+                        });
                     }
                 }
             } catch (err) { console.error(err); }
+        }
+        
+        function doMove(currentIndex, direction) {
+            fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
+                headers: { 'Authorization': 'Bearer ' + authToken }
+            }).then(function(res) { return res.json(); })
+            .then(function(pages) {
+                pages.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+                var newIndex = currentIndex + direction;
+                if (newIndex < 0 || newIndex >= pages.length) return;
+                var page1 = pages[currentIndex];
+                var page2 = pages[newIndex];
+                var order1 = page1.sort_order || 0;
+                var order2 = page2.sort_order || 0;
+                fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + page1.id, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                    body: JSON.stringify({ sort_order: order2 })
+                });
+                fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + page2.id, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                    body: JSON.stringify({ sort_order: order1 })
+                }).then(function() { loadPages(); });
+            });
         }
 
         async function editPage(id) {
@@ -1240,6 +1382,8 @@
                     document.getElementById('page-title').value = page.title;
                     document.getElementById('page-slug').value = page.slug;
                     document.getElementById('page-homepage').checked = page.is_homepage;
+                    document.getElementById('page-show-in-nav').checked = page.show_in_nav !== false;
+                    document.getElementById('page-sort-order').value = page.sort_order || 0;
                     document.getElementById('page-editor-title').textContent = 'Edit Page';
                     
                     if (page.content && page.content.length > 0) {
@@ -1290,10 +1434,13 @@
             const slug = document.getElementById('page-slug').value;
             const content = buildPageContentFromBlocks();
             const is_homepage = document.getElementById('page-homepage').checked;
+            const show_in_nav = document.getElementById('page-show-in-nav').checked;
+            const sort_order = parseInt(document.getElementById('page-sort-order').value) || 0;
             
             if (!title) { showToast('Please enter a title', 'error'); return; }
+            if (!currentSite || currentSite === 'null') { showToast('No site selected', 'error'); return; }
             
-            const payload = { title, slug: slug || null, content, is_homepage };
+            const payload = { title, slug: slug || null, content, is_homepage, show_in_nav, sort_order };
             
             try {
                 let res;
@@ -1453,6 +1600,32 @@
                             </div>
                             
                             <div>
+                                <label class="block text-gray-400 mb-2">Logo URL</label>
+                                <input type="text" id="setting-logo-url" class="w-full rounded px-4 py-2" value="${site.logo_url || ''}" placeholder="https://example.com/logo.png">
+                                <div class="mt-2 border-2 border-dashed border-gray-600 rounded p-4 text-center cursor-pointer hover:border-blue-500 transition-colors"
+                                    ondragover="event.preventDefault(); this.classList.add('border-blue-500')"
+                                    ondragleave="this.classList.remove('border-blue-500')"
+                                    ondrop="handleLogoDrop(event)">
+                                    <span class="text-gray-400 text-sm">Drop logo image here or click to upload</span>
+                                    <input type="file" id="logo-file" class="hidden" accept="image/*" onchange="handleLogoUpload(this.files[0])">
+                                </div>
+                                ${site.logo_url ? `<img src="${site.logo_url}" class="mt-2 max-h-24 rounded">` : ''}
+                            </div>
+                            
+                            <div>
+                                <label class="block text-gray-400 mb-2">Favicon URL</label>
+                                <input type="text" id="setting-favicon-url" class="w-full rounded px-4 py-2" value="${site.favicon_url || ''}" placeholder="https://example.com/favicon.ico">
+                                <div class="mt-2 border-2 border-dashed border-gray-600 rounded p-4 text-center cursor-pointer hover:border-blue-500 transition-colors"
+                                    ondragover="event.preventDefault(); this.classList.add('border-blue-500')"
+                                    ondragleave="this.classList.remove('border-blue-500')"
+                                    ondrop="handleFaviconDrop(event)">
+                                    <span class="text-gray-400 text-sm">Drop favicon image here or click to upload</span>
+                                    <input type="file" id="favicon-file" class="hidden" accept="image/*" onchange="handleFaviconUpload(this.files[0])">
+                                </div>
+                                ${site.favicon_url ? `<img src="${site.favicon_url}" class="mt-2 max-h-12 rounded">` : ''}
+                            </div>
+                            
+                            <div>
                                 <label class="block text-gray-400 mb-2">Description</label>
                                 <textarea id="setting-description" class="w-full rounded px-4 py-2" rows="2">${site.description || ''}</textarea>
                             </div>
@@ -1588,6 +1761,8 @@
             const name = document.getElementById('setting-name').value;
             const description = document.getElementById('setting-description').value;
             const footer_text = document.getElementById('setting-footer-text').value;
+            const logo_url = document.getElementById('setting-logo-url').value;
+            const favicon_url = document.getElementById('setting-favicon-url').value;
             const contact_phone = document.getElementById('setting-phone').value;
             const contact_email = document.getElementById('setting-email').value;
             const contact_address = document.getElementById('setting-address').value;
@@ -1639,6 +1814,8 @@
                         name,
                         description,
                         footer_text,
+                        logo_url: logo_url || null,
+                        favicon_url: favicon_url || null,
                         contact_phone,
                         contact_email,
                         contact_address,

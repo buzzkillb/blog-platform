@@ -17,7 +17,7 @@ pub async fn list(
     let current_user = require_auth(State(state.clone()), headers).await?;
 
     let rows = sqlx::query(
-        "SELECT id, subdomain, custom_domain, name, description, logo_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at FROM sites WHERE id IN (SELECT site_id FROM site_members WHERE user_id = $1) ORDER BY created_at DESC"
+        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at FROM sites WHERE id IN (SELECT site_id FROM site_members WHERE user_id = $1) ORDER BY created_at DESC"
     )
     .bind(current_user.user_id)
     .fetch_all(&state.db)
@@ -33,6 +33,7 @@ pub async fn list(
             name: row.get("name"),
             description: row.get("description"),
             logo_url: row.get("logo_url"),
+            favicon_url: row.get("favicon_url"),
             theme: row.get("theme"),
             nav_links: row.get("nav_links"),
             footer_text: row.get("footer_text"),
@@ -60,7 +61,7 @@ pub async fn get(
     require_site_member(&state, id, current_user.user_id).await?;
 
     let row = sqlx::query(
-        "SELECT id, subdomain, custom_domain, name, description, logo_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at FROM sites WHERE id = $1"
+        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at FROM sites WHERE id = $1"
     )
     .bind(id)
     .fetch_one(&state.db)
@@ -74,6 +75,7 @@ pub async fn get(
         name: row.get("name"),
         description: row.get("description"),
         logo_url: row.get("logo_url"),
+        favicon_url: row.get("favicon_url"),
         theme: row.get("theme"),
         nav_links: row.get("nav_links"),
         footer_text: row.get("footer_text"),
@@ -106,13 +108,14 @@ pub async fn create(
     let custom_domain = payload.custom_domain.filter(|s| !s.is_empty());
 
     let row = sqlx::query(
-        "INSERT INTO sites (subdomain, custom_domain, name, description, logo_url, homepage_type, nav_links, blog_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, subdomain, custom_domain, name, description, logo_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, landing_blocks, settings, created_at, blog_path"
+        "INSERT INTO sites (subdomain, custom_domain, name, description, logo_url, favicon_url, homepage_type, nav_links, blog_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, landing_blocks, settings, created_at, blog_path"
     )
     .bind(subdomain)
     .bind(custom_domain)
     .bind(&payload.name)
     .bind(&payload.description)
     .bind(&payload.logo_url)
+    .bind(&payload.favicon_url)
     .bind("both")
     .bind(serde_json::json!([{"label": "Home", "url": "/"}, {"label": "Blog", "url": "/blog"}, {"label": "About", "url": "/about"}, {"label": "Contact", "url": "/contact"}]))
     .bind("/blog")
@@ -192,6 +195,7 @@ pub async fn create(
         name: row.get("name"),
         description: row.get("description"),
         logo_url: row.get("logo_url"),
+        favicon_url: row.get("favicon_url"),
         theme: row.get("theme"),
         nav_links: row.get("nav_links"),
         footer_text: row.get("footer_text"),
@@ -240,6 +244,7 @@ pub async fn update(
     let blog_path = payload.get("blog_path").and_then(|v| v.as_str());
     let landing_blocks = payload.get("landing_blocks");
     let settings = payload.get("settings");
+    let favicon_url = payload.get("favicon_url").and_then(|v| v.as_str());
 
     let row = sqlx::query(
         "UPDATE sites SET 
@@ -248,6 +253,7 @@ pub async fn update(
             subdomain = COALESCE($4, subdomain),
             custom_domain = COALESCE($5, custom_domain),
             logo_url = COALESCE($6, logo_url), 
+            favicon_url = COALESCE($18, favicon_url),
             theme = COALESCE($7, theme),
             nav_links = COALESCE($8, nav_links),
             footer_text = COALESCE($9, footer_text),
@@ -260,7 +266,7 @@ pub async fn update(
             landing_blocks = COALESCE($16, landing_blocks),
             settings = COALESCE($17, settings)
          WHERE id = $1 
-         RETURNING id, subdomain, custom_domain, name, description, logo_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at"
+         RETURNING id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at"
     )
     .bind(id)
     .bind(name)
@@ -279,6 +285,7 @@ pub async fn update(
     .bind(blog_path)
     .bind(landing_blocks)
     .bind(settings)
+    .bind(favicon_url)
     .fetch_one(&state.db)
     .await
     .map_err(|_| ApiError::new("Site not found"))?;
@@ -290,6 +297,7 @@ pub async fn update(
         name: row.get("name"),
         description: row.get("description"),
         logo_url: row.get("logo_url"),
+        favicon_url: row.get("favicon_url"),
         theme: row.get("theme"),
         nav_links: row.get("nav_links"),
         footer_text: row.get("footer_text"),

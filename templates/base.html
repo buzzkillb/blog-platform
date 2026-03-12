@@ -3,24 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ site_name }}</title>
+    <title>{% if title and title != site_name %}{{ title }} - {% endif %}{{ site_name }}</title>
     {% if site_description %}<meta name="description" content="{{ site_description }}">{% endif %}
     <meta name="generator" content="Blog Platform">
+    {% if favicon_url %}<link rel="icon" type="image/x-icon" href="{{ favicon_url }}">{% endif %}
+    {% if logo_url %}<link rel="icon" type="image/png" href="{{ logo_url }}">{% endif %}
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="canonical" href="{{ url | default(value='/') }}">
-    <meta property="og:title" content="{{ title | default(value=site_name) }}">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{% if title %}{{ title }} - {% endif %}{{ site_name }}">
     <meta property="og:site_name" content="{{ site_name }}">
     {% if site_description %}<meta property="og:description" content="{{ site_description }}">{% endif %}
-    {% if featured_image %}<meta property="og:image" content="{{ featured_image }}">{% endif %}
-    <meta property="og:type" content="website">
-    <meta name="twitter:card" content="summary_large_image">
+    {% if featured_image %}
+    <meta property="og:image" content="{{ featured_image }}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    {% elif logo_url %}
+    <meta property="og:image" content="{{ logo_url }}">
+    {% endif %}
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="{% if featured_image or logo_url %}summary_large_image{% else %}summary{% endif %}">
+    <meta name="twitter:title" content="{% if title %}{{ title }} - {% endif %}{{ site_name }}">
+    {% if site_description %}<meta name="twitter:description" content="{{ site_description }}">{% endif %}
+    {% if featured_image %}
+    <meta name="twitter:image" content="{{ featured_image }}">
+    {% elif logo_url %}
+    <meta name="twitter:image" content="{{ logo_url }}">
+    {% endif %}
+    
+    <!-- JSON-LD Schema -->
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
         "@type": "WebSite",
         "name": "{{ site_name }}",
         "description": "{{ site_description | default(value='') }}",
-        "url": "{{ url | default(value='/') }}"
+        "url": "{{ url | default(value='/') }}",
+        {% if logo_url %}"logo": "{{ logo_url }}",{% endif %}
+        "publisher": {
+            "@type": "Organization",
+            "name": "{{ site_name }}"
+        }
     }
     </script>
     <style>
@@ -130,30 +156,28 @@
     </main>
     <footer>
         <div class="container">
-            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-                <div class="text-gray-600 text-sm">
-                    {% if contact_phone or contact_email or contact_address %}
-                    <div class="mb-2">
-                        {% if contact_phone %}{{ contact_phone }}{% endif %}
-                        {% if contact_phone and contact_email %} | {% endif %}
-                        {% if contact_email %}<a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% endif %}
-                        {% if (contact_phone or contact_email) and contact_address %} | {% endif %}
-                        {% if contact_address %}{{ contact_address }}{% endif %}
-                    </div>
-                    {% endif %}
-                </div>
-                <div class="flex gap-4">
-                    {% if social_links.github %}<a href="{{ social_links.github }}" target="_blank" class="text-gray-500 hover:text-gray-700"><i class="fab fa-github"></i></a>{% endif %}
-                    {% if social_links.x %}<a href="{{ social_links.x }}" target="_blank" class="text-gray-500 hover:text-gray-700"><i class="fab fa-x-twitter"></i></a>{% endif %}
-                    {% if social_links.facebook %}<a href="{{ social_links.facebook }}" target="_blank" class="text-gray-500 hover:text-gray-700"><i class="fab fa-facebook"></i></a>{% endif %}
-                    {% if social_links.instagram %}<a href="{{ social_links.instagram }}" target="_blank" class="text-gray-500 hover:text-gray-700"><i class="fab fa-instagram"></i></a>{% endif %}
-                    {% if social_links.linkedin %}<a href="{{ social_links.linkedin }}" target="_blank" class="text-gray-500 hover:text-gray-700"><i class="fab fa-linkedin"></i></a>{% endif %}
-                    {% if social_links.youtube %}<a href="{{ social_links.youtube }}" target="_blank" class="text-gray-500 hover:text-gray-700"><i class="fab fa-youtube"></i></a>{% endif %}
-                    {% if social_links.tiktok %}<a href="{{ social_links.tiktok }}" target="_blank" class="text-gray-500 hover:text-gray-700"><i class="fab fa-tiktok"></i></a>{% endif %}
-                </div>
+            {% if contact_phone or contact_email or contact_address %}
+            <div style="margin-bottom: 1rem; color: #8b949e;">
+                {% if contact_phone %}{{ contact_phone }}{% endif %}
+                {% if contact_phone and contact_email %} | {% endif %}
+                {% if contact_email %}<a href="mailto:{{ contact_email }}" style="color: #58a6ff;">{{ contact_email }}</a>{% endif %}
+                {% if (contact_phone or contact_email) and contact_address %} | {% endif %}
+                {% if contact_address %}{{ contact_address }}{% endif %}
+            </div>
+            {% endif %}
+            <div style="display: flex; gap: 1rem; justify-content: center; margin-bottom: 1rem;">
+                {% if social_links.github %}<a href="{{ social_links.github }}" target="_blank" style="color: #8b949e;"><i class="fab fa-github"></i></a>{% endif %}
+                {% if social_links.x %}<a href="{{ social_links.x }}" target="_blank" style="color: #8b949e;"><i class="fab fa-x-twitter"></i></a>{% endif %}
+                {% if social_links.facebook %}<a href="{{ social_links.facebook }}" target="_blank" style="color: #8b949e;"><i class="fab fa-facebook"></i></a>{% endif %}
+                {% if social_links.instagram %}<a href="{{ social_links.instagram }}" target="_blank" style="color: #8b949e;"><i class="fab fa-instagram"></i></a>{% endif %}
+                {% if social_links.linkedin %}<a href="{{ social_links.linkedin }}" target="_blank" style="color: #8b949e;"><i class="fab fa-linkedin"></i></a>{% endif %}
+                {% if social_links.youtube %}<a href="{{ social_links.youtube }}" target="_blank" style="color: #8b949e;"><i class="fab fa-youtube"></i></a>{% endif %}
+                {% if social_links.tiktok %}<a href="{{ social_links.tiktok }}" target="_blank" style="color: #8b949e;"><i class="fab fa-tiktok"></i></a>{% endif %}
             </div>
             {% if footer_text %}
-            <div class="text-center text-gray-500 text-sm mt-4">{{ footer_text }}</div>
+            <div style="text-align: center; color: #8b949e; font-size: 0.875rem; margin-top: 1rem;">{{ footer_text }}</div>
+            {% else %}
+            <div style="text-align: center; color: #8b949e; font-size: 0.875rem; margin-top: 1rem;">&copy; 2026 {{ site_name }}. All rights reserved.</div>
             {% endif %}
         </div>
     </footer>

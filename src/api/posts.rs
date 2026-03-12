@@ -7,7 +7,9 @@ use axum::{
 use uuid::Uuid;
 
 use crate::api::auth::{require_auth, require_site_member};
-use crate::{ssg, ApiError, AppState, CreatePostRequest, Post, UpdatePostRequest};
+use crate::{
+    ssg, util::generate_slug, ApiError, AppState, CreatePostRequest, Post, UpdatePostRequest,
+};
 
 pub async fn list(
     State(state): State<AppState>,
@@ -104,16 +106,9 @@ pub async fn create(
         return Err(ApiError::new("Title is required"));
     }
 
-    let slug = payload.slug.unwrap_or_else(|| {
-        payload
-            .title
-            .to_lowercase()
-            .chars()
-            .map(|c| if c.is_alphanumeric() { c } else { '-' })
-            .collect::<String>()
-            .trim_matches('-')
-            .to_string()
-    });
+    let slug = payload
+        .slug
+        .unwrap_or_else(|| generate_slug(&payload.title));
 
     let content = payload.content.clone();
     let excerpt = payload.excerpt.clone();

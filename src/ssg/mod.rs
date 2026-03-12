@@ -2,32 +2,41 @@ use minijinja::{context, Environment};
 use sqlx::Row;
 use uuid::Uuid;
 
+fn extract_first_image(content: &serde_json::Value) -> Option<String> {
+    if let Some(blocks) = content.as_array() {
+        for block in blocks {
+            if let Some(block_type) = block.get("type").and_then(|t| t.as_str()) {
+                if block_type == "image" {
+                    if let Some(img_content) = block.get("content") {
+                        if let Some(url) = img_content.get("url").and_then(|u| u.as_str()) {
+                            if !url.is_empty() {
+                                return Some(url.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 pub async fn build_site(
     db: &sqlx::PgPool,
     site_id: Uuid,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let site_row = sqlx::query(
-        "SELECT id, subdomain, custom_domain, name, description, logo_url, theme, settings, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address FROM sites WHERE id = $1"
+        "SELECT id, name, description, logo_url, favicon_url, footer_text, social_links, contact_phone, contact_email, contact_address FROM sites WHERE id = $1"
     )
     .bind(site_id)
     .fetch_one(db)
     .await?;
 
     let site_id: Uuid = site_row.get("id");
-    let _subdomain: Option<String> = site_row.get("subdomain");
-    let _custom_domain: Option<String> = site_row.get("custom_domain");
     let site_name: String = site_row.get("name");
     let site_description: Option<String> = site_row.get("description");
     let logo_url: Option<String> = site_row.get("logo_url");
-    let _theme: String = site_row
-        .get::<Option<String>, _>("theme")
-        .unwrap_or_default();
-    let _settings: serde_json::Value = site_row
-        .get::<Option<serde_json::Value>, _>("settings")
-        .unwrap_or(serde_json::json!({}));
-    let nav_links: serde_json::Value = site_row
-        .get::<Option<serde_json::Value>, _>("nav_links")
-        .unwrap_or(serde_json::json!([]));
+    let favicon_url: Option<String> = site_row.get("favicon_url");
     let footer_text: Option<String> = site_row.get("footer_text");
     let social_links: serde_json::Value = site_row
         .get::<Option<serde_json::Value>, _>("social_links")
@@ -45,12 +54,24 @@ pub async fn build_site(
     .fetch_all(db)
     .await?;
 
-    let pages = sqlx::query_as::<_, (String, String, serde_json::Value, bool)>(
-        "SELECT title, slug, content, is_homepage FROM pages WHERE site_id = $1",
+    let pages = sqlx::query_as::<_, (String, String, serde_json::Value, bool, bool, i32)>(
+        "SELECT title, slug, content, is_homepage, show_in_nav, sort_order FROM pages WHERE site_id = $1 ORDER BY sort_order ASC",
     )
     .bind(site_id)
     .fetch_all(db)
     .await?;
+
+    // Build nav_links from pages with show_in_nav = true (excluding homepage which is always at /)
+    let nav_pages: Vec<_> = pages.iter().filter(|p| p.4 && !p.3).collect();
+    let nav_links: Vec<serde_json::Value> = nav_pages
+        .iter()
+        .map(|p| {
+            serde_json::json!({
+                "label": p.0,
+                "url": format!("/{}", p.1)
+            })
+        })
+        .collect();
 
     let mut env = Environment::new();
 
@@ -67,12 +88,101 @@ pub async fn build_site(
     let index_html = std::fs::read_to_string(template_dir.join("index.html"))
         .map_err(|e| format!("Failed to read index.html: {}", e))?;
 
-    // Load all templates first so inheritance works
+    // Load templates
     env.add_template("base", &base_html)?;
     env.add_template("post", &post_html)?;
     env.add_template("page", &page_html)?;
-    // Load index last since it extends base
     env.add_template("index", &index_html)?;
+
+    let site_url = std::env::var("SITE_URL").unwrap_or_else(|_| "https://example.com".to_string());
+
+    let sitemap_xml = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<url>
+    <loc>{}/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+</url>
+<url>
+    <loc>{}/blog</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+</url>
+<url>
+    <loc>{}/about</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+</url>
+<url>
+    <loc>{}/contact</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+</url>
+{}
+</urlset>"#,
+        site_url,
+        site_url,
+        site_url,
+        site_url,
+        posts
+            .iter()
+            .map(|p| format!(
+                r#"<url>
+    <loc>{}/blog/{}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+</url>"#,
+                site_url, p.1
+            ))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    env.add_template("sitemap", &sitemap_xml)?;
+
+    let feed_items: Vec<String> = posts
+        .iter()
+        .map(|p| {
+            format!(
+                r#"<item>
+        <title><![CDATA[{}]]></title>
+        <link>{}/blog/{}</link>
+        <guid isPermaLink="true">{}/blog/{}</guid>
+        <pubDate>{}</pubDate>
+        <description><![CDATA[{}]]></description>
+    </item>"#,
+                p.0,
+                site_url,
+                p.1,
+                site_url,
+                p.1,
+                p.5.format("%a, %d %b %Y %H:%M:%S +0000"),
+                p.3.as_deref().unwrap_or("")
+            )
+        })
+        .collect();
+
+    let feed_xml = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+    <title>{}</title>
+    <link>{}</link>
+    <description>{}</description>
+    <language>en-us</language>
+    <lastBuildDate>{}</lastBuildDate>
+    <atom:link href="{}/feed.xml" rel="self" type="application/rss+xml"/>
+{}
+</channel>
+</rss>"#,
+        site_name,
+        site_url,
+        site_description.as_deref().unwrap_or(&site_name),
+        chrono::Utc::now().format("%a, %d %b %Y %H:%M:%S +0000"),
+        site_url,
+        feed_items.join("\n")
+    );
+    env.add_template("feed", &feed_xml)?;
 
     let posts_data: Vec<serde_json::Value> = posts
         .iter()
@@ -91,13 +201,14 @@ pub async fn build_site(
     let homepage = pages.iter().find(|p| p.3);
     let other_pages: Vec<_> = pages.iter().filter(|p| !p.3).collect();
 
-    let output_dir = std::path::Path::new("output").join(site_id.to_string());
-    std::fs::create_dir_all(&output_dir)?;
+    let output_dir = std::path::Path::new("output");
+    std::fs::create_dir_all(output_dir)?;
 
     let ctx = context! {
         site_name => site_name,
         site_description => site_description,
         logo_url => logo_url,
+        favicon_url => favicon_url,
         nav_links => nav_links,
         footer_text => footer_text,
         social_links => social_links,
@@ -111,11 +222,34 @@ pub async fn build_site(
     let index_html = index_template.render(ctx)?;
     std::fs::write(output_dir.join("index.html"), index_html)?;
 
+    // Generate blog listing page using page template for consistent styling
+    let blog_ctx = context! {
+        site_name => site_name,
+        site_description => site_description,
+        logo_url => logo_url,
+        favicon_url => favicon_url,
+        nav_links => nav_links,
+        footer_text => footer_text,
+        social_links => social_links,
+        contact_phone => contact_phone,
+        contact_email => contact_email,
+        contact_address => contact_address,
+        posts => posts_data.clone(),
+        title => "Blog",
+    };
+    let page_template = env.get_template("page")?;
+    let blog_html = page_template.render(blog_ctx)?;
+    std::fs::write(output_dir.join("blog.html"), blog_html)?;
+
     for post in &posts {
+        // Use featured_image from DB, or extract first image from content
+        let featured_img = post.4.clone().or_else(|| extract_first_image(&post.2));
+
         let post_ctx = context! {
             site_name => site_name,
             site_description => site_description,
             logo_url => logo_url,
+        favicon_url => favicon_url,
             nav_links => nav_links,
             footer_text => footer_text,
             social_links => social_links,
@@ -126,13 +260,15 @@ pub async fn build_site(
             slug => &post.1,
             content => render_blocks(&post.2),
             excerpt => &post.3,
-            featured_image => &post.4,
+            featured_image => featured_img,
             published_at => post.5.format("%Y-%m-%d").to_string(),
-            url => format!("/{}", post.1),
+            url => format!("/blog/{}", post.1),
         };
-        let post_template = env.get_template("post")?;
+        let post_template = env.get_template("page")?;
         let post_html = post_template.render(post_ctx)?;
-        std::fs::write(output_dir.join(format!("{}.html", post.1)), post_html)?;
+        let blog_dir = output_dir.join("blog");
+        std::fs::create_dir_all(&blog_dir)?;
+        std::fs::write(blog_dir.join(format!("{}.html", post.1)), post_html)?;
     }
 
     if let Some(home) = homepage {
@@ -140,6 +276,7 @@ pub async fn build_site(
             site_name => site_name,
             site_description => site_description,
             logo_url => logo_url,
+        favicon_url => favicon_url,
             nav_links => nav_links,
             footer_text => footer_text,
             social_links => social_links,
@@ -160,6 +297,7 @@ pub async fn build_site(
             site_name => site_name,
             site_description => site_description,
             logo_url => logo_url,
+        favicon_url => favicon_url,
             nav_links => nav_links,
             footer_text => footer_text,
             social_links => social_links,

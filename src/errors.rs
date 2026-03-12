@@ -31,13 +31,6 @@ impl ApiError {
             status_code: StatusCode::FORBIDDEN,
         }
     }
-
-    pub fn bad_request(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            status_code: StatusCode::BAD_REQUEST,
-        }
-    }
 }
 
 impl axum::response::IntoResponse for ApiError {
@@ -57,6 +50,7 @@ pub struct CreateSiteRequest {
     pub name: String,
     pub description: Option<String>,
     pub logo_url: Option<String>,
+    pub favicon_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -116,6 +110,8 @@ pub struct CreatePageRequest {
     pub slug: Option<String>,
     pub content: Option<serde_json::Value>,
     pub is_homepage: Option<bool>,
+    pub show_in_nav: Option<bool>,
+    pub sort_order: Option<i32>,
     pub seo: Option<serde_json::Value>,
 }
 
@@ -125,5 +121,7 @@ pub struct UpdatePageRequest {
     pub slug: Option<String>,
     pub content: Option<serde_json::Value>,
     pub is_homepage: Option<bool>,
+    pub show_in_nav: Option<bool>,
+    pub sort_order: Option<i32>,
     pub seo: Option<serde_json::Value>,
 }

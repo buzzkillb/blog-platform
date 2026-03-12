@@ -5,13 +5,19 @@
     <h1>{{ title }}</h1>
     
     <div class="content">
-        {{ content | safe }}
+        {% if title == "Blog" and posts %}
+            {% for post in posts %}
+            <article class="mb-8">
+                <h2 class="text-2xl font-bold">
+                    <a href="/blog/{{ post.slug }}" class="text-blue-600">{{ post.title }}</a>
+                </h2>
+                {% if post.excerpt %}<p class="text-gray-600">{{ post.excerpt }}</p>{% endif %}
+                <small class="text-gray-500">{{ post.published_at }}</small>
+            </article>
+            {% endfor %}
+        {% else %}
+            {{ content | safe }}
+        {% endif %}
     </div>
-    
-    <hr style="margin: 3rem 0; border-color: #30363d;">
-    
-    <nav>
-        <a href="/">&larr; Back to home</a>
-    </nav>
 </article>
 {% endblock %}
