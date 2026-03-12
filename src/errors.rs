@@ -50,6 +50,7 @@ pub struct CreateSiteRequest {
     pub name: String,
     pub description: Option<String>,
     pub logo_url: Option<String>,
+    pub favicon_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

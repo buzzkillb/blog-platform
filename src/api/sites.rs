@@ -115,7 +115,7 @@ pub async fn create(
     .bind(&payload.name)
     .bind(&payload.description)
     .bind(&payload.logo_url)
-    .bind(&payload.logo_url)
+    .bind(&payload.favicon_url)
     .bind("both")
     .bind(serde_json::json!([{"label": "Home", "url": "/"}, {"label": "Blog", "url": "/blog"}, {"label": "About", "url": "/about"}, {"label": "Contact", "url": "/contact"}]))
     .bind("/blog")
