@@ -11,6 +11,7 @@ pub struct Site {
     pub name: String,
     pub description: Option<String>,
     pub logo_url: Option<String>,
+    pub favicon_url: Option<String>,
     pub theme: String,
     pub nav_links: serde_json::Value,
     pub footer_text: Option<String>,

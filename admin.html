@@ -1453,6 +1453,16 @@
                             </div>
                             
                             <div>
+                                <label class="block text-gray-400 mb-2">Logo URL</label>
+                                <input type="text" id="setting-logo-url" class="w-full rounded px-4 py-2" value="${site.logo_url || ''}" placeholder="https://example.com/logo.png">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-gray-400 mb-2">Favicon URL</label>
+                                <input type="text" id="setting-favicon-url" class="w-full rounded px-4 py-2" value="${site.favicon_url || ''}" placeholder="https://example.com/favicon.ico">
+                            </div>
+                            
+                            <div>
                                 <label class="block text-gray-400 mb-2">Description</label>
                                 <textarea id="setting-description" class="w-full rounded px-4 py-2" rows="2">${site.description || ''}</textarea>
                             </div>
@@ -1588,6 +1598,8 @@
             const name = document.getElementById('setting-name').value;
             const description = document.getElementById('setting-description').value;
             const footer_text = document.getElementById('setting-footer-text').value;
+            const logo_url = document.getElementById('setting-logo-url').value;
+            const favicon_url = document.getElementById('setting-favicon-url').value;
             const contact_phone = document.getElementById('setting-phone').value;
             const contact_email = document.getElementById('setting-email').value;
             const contact_address = document.getElementById('setting-address').value;
@@ -1639,6 +1651,8 @@
                         name,
                         description,
                         footer_text,
+                        logo_url: logo_url || null,
+                        favicon_url: favicon_url || null,
                         contact_phone,
                         contact_email,
                         contact_address,

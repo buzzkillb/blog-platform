@@ -26,7 +26,7 @@ pub async fn build_site(
     site_id: Uuid,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let site_row = sqlx::query(
-        "SELECT id, subdomain, custom_domain, name, description, logo_url, theme, settings, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address FROM sites WHERE id = $1"
+        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, settings, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address FROM sites WHERE id = $1"
     )
     .bind(site_id)
     .fetch_one(db)
@@ -38,6 +38,7 @@ pub async fn build_site(
     let site_name: String = site_row.get("name");
     let site_description: Option<String> = site_row.get("description");
     let logo_url: Option<String> = site_row.get("logo_url");
+    let favicon_url: Option<String> = site_row.get("favicon_url");
     let _theme: String = site_row
         .get::<Option<String>, _>("theme")
         .unwrap_or_default();
@@ -208,6 +209,7 @@ pub async fn build_site(
         site_name => site_name,
         site_description => site_description,
         logo_url => logo_url,
+        favicon_url => favicon_url,
         nav_links => nav_links,
         footer_text => footer_text,
         social_links => social_links,
@@ -226,6 +228,7 @@ pub async fn build_site(
         site_name => site_name,
         site_description => site_description,
         logo_url => logo_url,
+        favicon_url => favicon_url,
         nav_links => nav_links,
         footer_text => footer_text,
         social_links => social_links,
@@ -247,6 +250,7 @@ pub async fn build_site(
             site_name => site_name,
             site_description => site_description,
             logo_url => logo_url,
+        favicon_url => favicon_url,
             nav_links => nav_links,
             footer_text => footer_text,
             social_links => social_links,
@@ -273,6 +277,7 @@ pub async fn build_site(
             site_name => site_name,
             site_description => site_description,
             logo_url => logo_url,
+        favicon_url => favicon_url,
             nav_links => nav_links,
             footer_text => footer_text,
             social_links => social_links,
@@ -293,6 +298,7 @@ pub async fn build_site(
             site_name => site_name,
             site_description => site_description,
             logo_url => logo_url,
+        favicon_url => favicon_url,
             nav_links => nav_links,
             footer_text => footer_text,
             social_links => social_links,
