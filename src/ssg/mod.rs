@@ -69,6 +69,7 @@ pub async fn build_site(
 
     // Load all templates first so inheritance works
     env.add_template("base", &base_html)?;
+    env.add_template("base.html", &base_html)?;
     env.add_template("post", &post_html)?;
     env.add_template("page", &page_html)?;
     // Load index last since it extends base
