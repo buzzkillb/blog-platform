@@ -4,13 +4,13 @@ pub mod pages;
 pub mod posts;
 pub mod sites;
 
+use crate::{ApiError, AppState};
 use axum::{
     extract::{Path, State},
     http::HeaderMap,
     routing::{get, post},
     Json, Router,
 };
-use crate::{ApiError, AppState};
 
 pub fn routes() -> Router<crate::AppState> {
     Router::new()
@@ -55,10 +55,7 @@ pub fn routes() -> Router<crate::AppState> {
             "/api/sites/{site_id}/contact",
             get(sites::list_contact_submissions),
         )
-        .route(
-            "/api/sites/{site_id}/build",
-            post(build_site),
-        )
+        .route("/api/sites/{site_id}/build", post(build_site))
 }
 
 async fn build_site(
@@ -69,8 +66,9 @@ async fn build_site(
     let current_user = auth::require_auth(State(state.clone()), headers)
         .await
         .map_err(|e| ApiError::new(e.message))?;
-    
-    auth::require_site_member(&state, site_id, current_user.user_id).await
+
+    auth::require_site_member(&state, site_id, current_user.user_id)
+        .await
         .map_err(|e| ApiError::new(e.message))?;
 
     // Build the site

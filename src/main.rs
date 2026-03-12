@@ -147,13 +147,13 @@ async fn main() {
                             } else {
                                 "text/html"
                             };
-                            
+
                             return (
                                 StatusCode::OK,
                                 [(axum::http::header::CONTENT_TYPE, content_type)],
                                 content,
                             )
-                            .into_response();
+                                .into_response();
                         }
                     }
                     axum::response::Html("Not found").into_response()
