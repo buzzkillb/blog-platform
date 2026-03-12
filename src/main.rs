@@ -97,16 +97,30 @@ async fn main() {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let output_base = std::path::Path::new("output");
-    let static_output = ServeDir::new(output_base);
-
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/admin", get(admin_handler))
         .route("/admin/{*path}", get(admin_handler))
+        .route("/", get(|State(state): State<AppState>| async move {
+            let html_path = "output/index.html";
+            if std::path::Path::new(html_path).exists() {
+                if let Ok(content) = tokio::fs::read_to_string(html_path).await {
+                    return axum::response::Html(content).into_response();
+                }
+            }
+            axum::response::Html("Not found").into_response()
+        }))
+        .route("/{*path}", get(|axum::extract::Path(path): axum::extract::Path<String>| async move {
+            let html_path = format!("output/{}.html", path);
+            if std::path::Path::new(&html_path).exists() {
+                if let Ok(content) = tokio::fs::read_to_string(&html_path).await {
+                    return axum::response::Html(content).into_response();
+                }
+            }
+            axum::response::Html("Not found").into_response()
+        }))
         .nest_service("/static", static_files.clone())
         .nest_service("/media", media_files)
-        .fallback_service(static_output)
         .merge(api::routes())
         .layer(cors)
         .with_state(state);
