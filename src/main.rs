@@ -103,7 +103,7 @@ async fn main() {
                         return axum::response::Html(content).into_response();
                     }
                 }
-                axum::response::Html("Not found").into_response()
+                (StatusCode::NOT_FOUND, axum::response::Html("Not found")).into_response()
             }),
         )
         .route(
@@ -156,7 +156,11 @@ async fn main() {
                                 .into_response();
                         }
                     }
-                    axum::response::Html("Not found").into_response()
+                    (
+                        StatusCode::NOT_FOUND,
+                        axum::response::Html("Not found"),
+                    )
+                    .into_response()
                 },
             ),
         )
