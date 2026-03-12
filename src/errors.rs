@@ -31,13 +31,6 @@ impl ApiError {
             status_code: StatusCode::FORBIDDEN,
         }
     }
-
-    pub fn bad_request(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            status_code: StatusCode::BAD_REQUEST,
-        }
-    }
 }
 
 impl axum::response::IntoResponse for ApiError {

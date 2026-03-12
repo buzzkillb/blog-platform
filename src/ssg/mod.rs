@@ -26,25 +26,17 @@ pub async fn build_site(
     site_id: Uuid,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let site_row = sqlx::query(
-        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, settings, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address FROM sites WHERE id = $1"
+        "SELECT id, name, description, logo_url, favicon_url, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address FROM sites WHERE id = $1"
     )
     .bind(site_id)
     .fetch_one(db)
     .await?;
 
     let site_id: Uuid = site_row.get("id");
-    let _subdomain: Option<String> = site_row.get("subdomain");
-    let _custom_domain: Option<String> = site_row.get("custom_domain");
     let site_name: String = site_row.get("name");
     let site_description: Option<String> = site_row.get("description");
     let logo_url: Option<String> = site_row.get("logo_url");
     let favicon_url: Option<String> = site_row.get("favicon_url");
-    let _theme: String = site_row
-        .get::<Option<String>, _>("theme")
-        .unwrap_or_default();
-    let _settings: serde_json::Value = site_row
-        .get::<Option<serde_json::Value>, _>("settings")
-        .unwrap_or(serde_json::json!({}));
     let nav_links: serde_json::Value = site_row
         .get::<Option<serde_json::Value>, _>("nav_links")
         .unwrap_or(serde_json::json!([]));
@@ -87,12 +79,10 @@ pub async fn build_site(
     let index_html = std::fs::read_to_string(template_dir.join("index.html"))
         .map_err(|e| format!("Failed to read index.html: {}", e))?;
 
-    // Load all templates first so inheritance works
+    // Load templates
     env.add_template("base", &base_html)?;
-    env.add_template("base.html", &base_html)?;
     env.add_template("post", &post_html)?;
     env.add_template("page", &page_html)?;
-    // Load index last since it extends base
     env.add_template("index", &index_html)?;
 
     let site_url = std::env::var("SITE_URL").unwrap_or_else(|_| "https://example.com".to_string());
@@ -203,7 +193,7 @@ pub async fn build_site(
     let other_pages: Vec<_> = pages.iter().filter(|p| !p.3).collect();
 
     let output_dir = std::path::Path::new("output");
-    std::fs::create_dir_all(&output_dir)?;
+    std::fs::create_dir_all(output_dir)?;
 
     let ctx = context! {
         site_name => site_name,
