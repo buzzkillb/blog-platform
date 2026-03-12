@@ -146,8 +146,8 @@ pub async fn build_site(
             format!(
                 r#"<item>
         <title><![CDATA[{}]]></title>
-        <link>{}/{}</link>
-        <guid isPermaLink="true">{}/{}</guid>
+        <link>{}/blog/{}</link>
+        <guid isPermaLink="true">{}/blog/{}</guid>
         <pubDate>{}</pubDate>
         <description><![CDATA[{}]]></description>
     </item>"#,

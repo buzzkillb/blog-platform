@@ -233,6 +233,11 @@ async fn run_migrations(db: &sqlx::PgPool) {
     .await
     .expect("Failed to create sites table");
 
+    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS favicon_url VARCHAR(1000)")
+        .execute(db)
+        .await
+        .ok();
+
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS users (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -17,7 +17,7 @@ pub async fn list(
     let current_user = require_auth(State(state.clone()), headers).await?;
 
     let rows = sqlx::query(
-        "SELECT id, subdomain, custom_domain, name, description, logo_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at FROM sites WHERE id IN (SELECT site_id FROM site_members WHERE user_id = $1) ORDER BY created_at DESC"
+        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at FROM sites WHERE id IN (SELECT site_id FROM site_members WHERE user_id = $1) ORDER BY created_at DESC"
     )
     .bind(current_user.user_id)
     .fetch_all(&state.db)
@@ -108,12 +108,13 @@ pub async fn create(
     let custom_domain = payload.custom_domain.filter(|s| !s.is_empty());
 
     let row = sqlx::query(
-        "INSERT INTO sites (subdomain, custom_domain, name, description, logo_url, homepage_type, nav_links, blog_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, subdomain, custom_domain, name, description, logo_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, landing_blocks, settings, created_at, blog_path"
+        "INSERT INTO sites (subdomain, custom_domain, name, description, logo_url, favicon_url, homepage_type, nav_links, blog_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, landing_blocks, settings, created_at, blog_path"
     )
     .bind(subdomain)
     .bind(custom_domain)
     .bind(&payload.name)
     .bind(&payload.description)
+    .bind(&payload.logo_url)
     .bind(&payload.logo_url)
     .bind("both")
     .bind(serde_json::json!([{"label": "Home", "url": "/"}, {"label": "Blog", "url": "/blog"}, {"label": "About", "url": "/about"}, {"label": "Contact", "url": "/contact"}]))
@@ -209,7 +210,7 @@ pub async fn create(
         created_at: row.get("created_at"),
     };
 
-    Ok(Json(site))
+    Ok((StatusCode::CREATED, Json(site)))
 }
 
 pub async fn update(
