@@ -1297,12 +1297,10 @@
                                         <span class="text-gray-400 text-sm">Nav</span>
                                         <div class="relative">
                                             <input type="checkbox" 
-                                                id="toggle-${page.id}"
                                                 ${page.show_in_nav !== false ? 'checked' : ''} 
                                                 onchange="togglePageNav('${page.id}', this.checked)"
                                                 class="sr-only peer">
-                                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600 cursor-pointer" 
-                                                onclick="document.getElementById('toggle-${page.id}').click()"></div>
+                                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
                                         </div>
                                     </label>
                                     <div class="flex items-center gap-1">
@@ -1351,10 +1349,7 @@
                 });
                 
                 loadPages();
-            } catch (err) { 
-                console.error(err);
-                showToast('Failed to move page: ' + err.message, 'error');
-            }
+            } catch (err) { console.error(err); }
         }
         
         async function togglePageNav(pageId, showInNav) {
