@@ -1282,77 +1282,77 @@
                     if (pages.length === 0) {
                         list.innerHTML = '<p class="text-gray-400">No pages yet.</p>';
                     } else {
+                        // Sort by sort_order
+                        pages.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+                        
                         list.innerHTML = pages.map((page, index) => `
-                            <div class="card p-4 rounded-lg flex items-center gap-3" draggable="true" data-page-id="${page.id}" data-sort-order="${page.sort_order || 0}">
-                                <div class="cursor-move text-gray-500 hover:text-gray-300">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path></svg>
-                                </div>
+                            <div class="card p-4 rounded-lg flex items-center gap-3" data-page-id="${page.id}" data-sort-order="${page.sort_order || 0}">
+                                <div class="text-gray-500 font-mono text-sm w-6">${index + 1}</div>
                                 <div class="flex-1">
                                     <h3 class="text-white font-medium">${page.title}</h3>
                                     <p class="text-gray-400 text-sm">/${page.slug}${page.is_homepage ? ' (Homepage)' : ''}</p>
                                 </div>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="togglePageNav('${page.id}', ${page.show_in_nav !== false})" class="px-2 py-1 rounded text-xs ${page.show_in_nav !== false ? 'bg-green-600' : 'bg-gray-600'} text-white" title="${page.show_in_nav !== false ? 'Click to hide from nav' : 'Click to show in nav'}">
-                                        ${page.show_in_nav !== false ? 'Nav' : 'Hidden'}
-                                    </button>
-                                    <input type="number" value="${page.sort_order || 0}" 
-                                        onchange="updatePageSortOrder('${page.id}', this.value)"
-                                        class="w-16 bg-gray-700 text-white text-sm px-2 py-1 rounded border border-gray-600" 
-                                        title="Sort order">
+                                <div class="flex items-center gap-4">
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <span class="text-gray-400 text-sm">Nav</span>
+                                        <div class="relative">
+                                            <input type="checkbox" 
+                                                ${page.show_in_nav !== false ? 'checked' : ''} 
+                                                onchange="togglePageNav('${page.id}', this.checked)"
+                                                class="sr-only peer">
+                                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                                        </div>
+                                    </label>
+                                    <div class="flex items-center gap-1">
+                                        <button onclick="movePage('${page.id}', ${index}, -1)" class="p-1 text-gray-500 hover:text-white ${index === 0 ? 'opacity-30 cursor-not-allowed' : ''}" ${index === 0 ? 'disabled' : ''}>↑</button>
+                                        <button onclick="movePage('${page.id}', ${index}, 1)" class="p-1 text-gray-500 hover:text-white ${index === pages.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" ${index === pages.length - 1 ? 'disabled' : ''}>↓</button>
+                                    </div>
                                     <button onclick="editPage('${page.id}')" class="btn-secondary text-white px-3 py-1 rounded">Edit</button>
                                     <button onclick="deletePage('${page.id}')" class="bg-red-600 text-white px-3 py-1 rounded">Delete</button>
                                 </div>
                             </div>
                         `).join('');
-                        
-                        // Add drag and drop handlers
-                        setupPagesDragDrop();
                     }
                 }
             } catch (err) { console.error(err); }
         }
         
-        function setupPagesDragDrop() {
-            const list = document.getElementById('pages-list');
-            let draggedItem = null;
-            
-            list.querySelectorAll('[draggable="true"]').forEach(item => {
-                item.addEventListener('dragstart', function(e) {
-                    draggedItem = this;
-                    this.classList.add('opacity-50');
+        async function movePage(pageId, currentIndex, direction) {
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (!res.ok) return;
+                
+                const pages = await res.json();
+                pages.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+                
+                const newIndex = currentIndex + direction;
+                if (newIndex < 0 || newIndex >= pages.length) return;
+                
+                // Swap sort orders
+                const page1 = pages[currentIndex];
+                const page2 = pages[newIndex];
+                const order1 = page1.sort_order || 0;
+                const order2 = page2.sort_order || 0;
+                
+                await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + page1.id, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                    body: JSON.stringify({ sort_order: order2 })
                 });
                 
-                item.addEventListener('dragend', function() {
-                    this.classList.remove('opacity-50');
-                    draggedItem = null;
+                await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + page2.id, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                    body: JSON.stringify({ sort_order: order1 })
                 });
                 
-                item.addEventListener('dragover', function(e) {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                });
-                
-                item.addEventListener('drop', async function(e) {
-                    e.preventDefault();
-                    if (draggedItem && draggedItem !== this) {
-                        const fromId = draggedItem.dataset.pageId;
-                        const toId = this.dataset.pageId;
-                        const fromOrder = parseInt(draggedItem.dataset.sortOrder);
-                        const toOrder = parseInt(this.dataset.sortOrder);
-                        
-                        // Swap sort orders
-                        await updatePageSortOrder(fromId, toOrder);
-                        await updatePageSortOrder(toId, fromOrder);
-                        
-                        loadPages();
-                    }
-                });
-            });
+                loadPages();
+            } catch (err) { console.error(err); }
         }
         
-        async function togglePageNav(pageId, currentShowInNav) {
-            // Toggle: if currently shown (true), hide it (false); if hidden, show it (true)
-            const showInNav = !currentShowInNav;
+        async function togglePageNav(pageId, showInNav) {
             try {
                 const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + pageId, {
                     method: 'PUT',
@@ -1381,6 +1381,7 @@
                     },
                     body: JSON.stringify({ sort_order: parseInt(sortOrder) })
                 });
+                loadPages();
             } catch (err) { console.error(err); }
         }
 
