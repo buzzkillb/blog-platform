@@ -242,25 +242,7 @@ pub async fn build_site(
     let index_html = index_template.render(ctx)?;
     std::fs::write(output_dir.join("index.html"), index_html)?;
 
-    // Generate blog listing page using page template for consistent styling
-    let blog_ctx = context! {
-        site_name => site_name,
-        site_description => site_description,
-        logo_url => logo_url,
-        favicon_url => favicon_url,
-        nav_links => nav_links,
-        footer_text => footer_text,
-        social_links => social_links,
-        contact_phone => contact_phone,
-        contact_email => contact_email,
-        contact_address => contact_address,
-        posts => posts_data.clone(),
-        title => "Blog",
-        url => "/blog",
-    };
-    let page_template = env.get_template("page.html")?;
-    let blog_html = page_template.render(blog_ctx)?;
-    std::fs::write(output_dir.join("blog.html"), blog_html)?;
+    // Individual blog post pages are generated in the page loop below
 
     for post in &posts {
         // Use featured_image from DB, or extract first image from content
@@ -314,21 +296,42 @@ pub async fn build_site(
     }
 
     for page in other_pages {
-        let page_ctx = context! {
-            site_name => site_name,
-            site_description => site_description,
-            logo_url => logo_url,
-        favicon_url => favicon_url,
-            nav_links => nav_links,
-            footer_text => footer_text,
-            social_links => social_links,
-            contact_phone => contact_phone,
-            contact_email => contact_email,
-            contact_address => contact_address,
-            title => &page.0,
-            slug => &page.1,
-            content => render_blocks(&page.2),
-            url => format!("/{}", page.1),
+        let is_blog = page.1 == "blog";
+        let page_ctx = if is_blog {
+            context! {
+                site_name => site_name,
+                site_description => site_description,
+                logo_url => logo_url,
+                favicon_url => favicon_url,
+                nav_links => nav_links,
+                footer_text => footer_text,
+                social_links => social_links,
+                contact_phone => contact_phone,
+                contact_email => contact_email,
+                contact_address => contact_address,
+                title => &page.0,
+                slug => &page.1,
+                content => render_blocks(&page.2),
+                url => format!("/{}", page.1),
+                posts => posts_data.clone(),
+            }
+        } else {
+            context! {
+                site_name => site_name,
+                site_description => site_description,
+                logo_url => logo_url,
+                favicon_url => favicon_url,
+                nav_links => nav_links,
+                footer_text => footer_text,
+                social_links => social_links,
+                contact_phone => contact_phone,
+                contact_email => contact_email,
+                contact_address => contact_address,
+                title => &page.0,
+                slug => &page.1,
+                content => render_blocks(&page.2),
+                url => format!("/{}", page.1),
+            }
         };
         let page_template = env.get_template("page.html")?;
         let page_html = page_template.render(page_ctx)?;
