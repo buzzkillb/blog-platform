@@ -31,7 +31,7 @@ pub fn render_social_links(social_links: &serde_json::Value) -> String {
             .filter_map(|(platform, url)| {
                 let url_str = url.as_str()?;
                 if url_str.is_empty() { return None; }
-                
+
                 let full_url = if !url_str.contains("://") {
                     let base = match platform.as_str() {
                         "x" => "https://x.com/",
@@ -47,7 +47,7 @@ pub fn render_social_links(social_links: &serde_json::Value) -> String {
                 } else {
                     url_str.to_string()
                 };
-                
+
                 let icon = match platform.as_str() {
                     "x" => "fa-x-twitter",
                     "facebook" => "fa-facebook", 
