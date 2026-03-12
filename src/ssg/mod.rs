@@ -156,7 +156,6 @@ pub async fn build_site(
             .collect::<Vec<_>>()
             .join("\n")
     );
-    env.add_template("sitemap", &sitemap_xml)?;
 
     let feed_items: Vec<String> = posts
         .iter()
@@ -174,7 +173,10 @@ pub async fn build_site(
                 p.1,
                 site_url,
                 p.1,
-                p.5.map(|dt| dt.format("%a, %d %b %Y %H:%M:%S +0000").to_string()).unwrap_or_else(|| chrono::Utc::now().format("%a, %d %b %Y %H:%M:%S +0000").to_string()),
+                p.5.map(|dt| dt.format("%a, %d %b %Y %H:%M:%S +0000").to_string())
+                    .unwrap_or_else(|| chrono::Utc::now()
+                        .format("%a, %d %b %Y %H:%M:%S +0000")
+                        .to_string()),
                 p.3.as_deref().unwrap_or("")
             )
         })
@@ -200,7 +202,6 @@ pub async fn build_site(
         site_url,
         feed_items.join("\n")
     );
-    env.add_template("feed", &feed_xml)?;
 
     let posts_data: Vec<serde_json::Value> = posts
         .iter()
@@ -334,27 +335,11 @@ pub async fn build_site(
         std::fs::write(output_dir.join(format!("{}.html", page.1)), page_html)?;
     }
 
-    // Collect page slugs for sitemap
-    let page_slugs: Vec<&str> = pages.iter().map(|p| p.1.as_str()).collect();
+    // Write sitemap - already generated inline above
+    std::fs::write(output_dir.join("sitemap.xml"), &sitemap_xml)?;
 
-    let sitemap_ctx = context! {
-        site_url => site_url,
-        pages => page_slugs,
-        posts => posts_data.iter().map(|p| p.get("slug").and_then(|s| s.as_str()).unwrap_or("")).collect::<Vec<_>>(),
-    };
-    let sitemap_template = env.get_template("sitemap")?;
-    let sitemap_xml = sitemap_template.render(sitemap_ctx)?;
-    std::fs::write(output_dir.join("sitemap.xml"), sitemap_xml)?;
-
-    let feed_ctx = context! {
-        site_url => site_url,
-        site_name => site_name,
-        site_description => site_description,
-        posts => posts_data,
-    };
-    let feed_template = env.get_template("feed")?;
-    let feed_xml = feed_template.render(feed_ctx)?;
-    std::fs::write(output_dir.join("feed.xml"), feed_xml)?;
+    // Write feed - already generated inline above
+    std::fs::write(output_dir.join("feed.xml"), &feed_xml)?;
 
     tracing::info!("Built static site for site_id: {}", site_id);
     Ok(())
