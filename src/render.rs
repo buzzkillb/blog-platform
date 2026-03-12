@@ -6,21 +6,16 @@ use uuid::Uuid;
 
 pub type HtmlResponse = (StatusCode, HeaderMap, String);
 
-pub fn render_nav_links(nav_links: &serde_json::Value, site_path: &str) -> String {
+pub fn render_nav_links(nav_links: &serde_json::Value, _site_path: &str) -> String {
     if let Some(links) = nav_links.as_array() {
         links
             .iter()
             .map(|link| {
                 let label = link.get("label").and_then(|l| l.as_str()).unwrap_or("");
                 let url = link.get("url").and_then(|u| u.as_str()).unwrap_or("#");
-                let full_url = if url.starts_with('/') {
-                    format!("{}{}", site_path, url)
-                } else {
-                    url.to_string()
-                };
                 format!(
                     "<a href=\"{}\" class=\"text-gray-700 hover:text-blue-600 px-3\">{}</a>",
-                    full_url, label
+                    url, label
                 )
             })
             .collect::<Vec<_>>()
@@ -36,6 +31,23 @@ pub fn render_social_links(social_links: &serde_json::Value) -> String {
             .filter_map(|(platform, url)| {
                 let url_str = url.as_str()?;
                 if url_str.is_empty() { return None; }
+
+                let full_url = if !url_str.contains("://") {
+                    let base = match platform.as_str() {
+                        "x" => "https://x.com/",
+                        "facebook" => "https://facebook.com/",
+                        "instagram" => "https://instagram.com/",
+                        "linkedin" => "https://linkedin.com/in/",
+                        "youtube" => "https://youtube.com/@",
+                        "github" => "https://github.com/",
+                        "tiktok" => "https://tiktok.com/@",
+                        _ => "https://"
+                    };
+                    format!("{}{}", base, url_str)
+                } else {
+                    url_str.to_string()
+                };
+
                 let icon = match platform.as_str() {
                     "x" => "fa-x-twitter",
                     "facebook" => "fa-facebook", 
@@ -47,8 +59,8 @@ pub fn render_social_links(social_links: &serde_json::Value) -> String {
                     _ => "fa-link"
                 };
                 Some(format!(
-                    "<a href=\"{}\" target=\"_blank\" class=\"text-gray-500 hover:text-gray-700\"><i class=\"fab {}\"></i></a>",
-                    url_str, icon
+                    "<a href=\"{}\" target=\"_blank\" class=\"text-gray-500 hover:text-gray-700\"><i class=\"fa-brands {}\"></i></a>",
+                    full_url, icon
                 ))
             })
             .collect::<Vec<_>>()
@@ -75,9 +87,9 @@ pub fn render_contact_info(settings: &SiteSettings) -> String {
     parts.join(" | ")
 }
 
-pub fn render_header(settings: &SiteSettings, site_name: &str, slug: &str) -> String {
-    let site_path = format!("/site/{}", slug);
-    let nav_html = render_nav_links(&settings.nav_links, &site_path);
+pub fn render_header(settings: &SiteSettings, site_name: &str, _slug: &str) -> String {
+    let site_path = "/";
+    let nav_html = render_nav_links(&settings.nav_links, site_path);
     let logo_img = if !settings.logo_url.is_empty() {
         format!("<img src=\"{}\" class=\"h-10 w-auto\">", settings.logo_url)
     } else {
@@ -128,7 +140,10 @@ pub fn render_blocks(content: &serde_json::Value) -> String {
     if let Some(blocks) = content.as_array() {
         blocks.iter()
             .map(|block| {
-                let block_type = block.get("block_type").and_then(|t| t.as_str()).unwrap_or("paragraph");
+                let block_type = block.get("type")
+                    .or_else(|| block.get("block_type"))
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("paragraph");
                 let block_content = block.get("content");
 
                 match block_type {
@@ -244,11 +259,11 @@ mod tests {
 
         let result = render_nav_links(&nav_links, "/mysite");
 
-        assert!(result.contains("href=\"/mysite/\""));
+        assert!(result.contains("href=\"/\""));
         assert!(result.contains("Home"));
-        assert!(result.contains("href=\"/mysite/about\""));
+        assert!(result.contains("href=\"/about\""));
         assert!(result.contains("About"));
-        assert!(result.contains("href=\"/mysite/blog\""));
+        assert!(result.contains("href=\"/blog\""));
         assert!(result.contains("Blog"));
     }
 
@@ -483,7 +498,7 @@ mod tests {
 
         assert!(result.contains("logo.png"));
         assert!(result.contains("My Site"));
-        assert!(result.contains("/site/my-site"));
+        assert!(result.contains("href=\"/\""));
     }
 
     #[test]

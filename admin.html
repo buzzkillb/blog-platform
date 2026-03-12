@@ -52,14 +52,22 @@
         let currentUser = null;
         let currentSite = null;
         let currentView = 'posts';
+        let authToken = null;
         
         // Load session from localStorage on init
         function loadSession() {
             const savedUser = localStorage.getItem('blog_user');
             const savedSite = localStorage.getItem('blog_site_id');
-            if (savedUser && savedSite) {
+            const savedToken = localStorage.getItem('blog_token');
+            if (savedUser) {
                 currentUser = JSON.parse(savedUser);
-                currentSite = savedSite;
+                authToken = savedToken;
+                if (savedSite) {
+                    currentSite = savedSite;
+                } else {
+                    currentSite = null;
+                    currentView = 'sites';
+                }
                 render();
             }
         }
@@ -68,29 +76,53 @@
             if (currentUser && currentSite) {
                 localStorage.setItem('blog_user', JSON.stringify(currentUser));
                 localStorage.setItem('blog_site_id', currentSite);
+                if (authToken) {
+                    localStorage.setItem('blog_token', authToken);
+                }
             }
         }
         
         function clearSession() {
             localStorage.removeItem('blog_user');
             localStorage.removeItem('blog_site_id');
+            localStorage.removeItem('blog_token');
             currentUser = null;
             currentSite = null;
+            authToken = null;
         }
         
         // Initialize session
         loadSession();
         
+        async function initSite() {
+            try {
+                const res = await fetch(API_BASE + '/api/sites', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (res.ok) {
+                    const sites = await res.json();
+                    if (sites.length > 0) {
+                        currentSite = sites[0].id;
+                        localStorage.setItem('blog_site_id', currentSite);
+                    }
+                }
+            } catch (err) { console.error(err); }
+        }
+        
         function render() {
             const app = document.getElementById('app');
             if (!currentUser) {
                 app.innerHTML = renderLogin();
-            } else if (!currentSite) {
-                app.innerHTML = renderSites();
-                setTimeout(loadSites, 50);
             } else {
-                app.innerHTML = renderDashboard();
-                setTimeout(afterRender, 50);
+                if (!currentSite) {
+                    initSite().then(() => {
+                        app.innerHTML = renderDashboard();
+                        setTimeout(afterRender, 100);
+                    });
+                } else {
+                    app.innerHTML = renderDashboard();
+                    setTimeout(afterRender, 50);
+                }
             }
         }
 
@@ -164,6 +196,7 @@
                     const data = await res.json();
                     currentUser = data.user;
                     currentSite = data.site_id;
+                    authToken = data.token;
                     saveSession();
                     render();
                 } else {
@@ -187,6 +220,8 @@
                     const data = await res.json();
                     currentUser = data.user;
                     currentSite = data.site_id;
+                    authToken = data.token;
+                    saveSession();
                     render();
                 } else {
                     showToast('Registration failed', 'error');
@@ -194,64 +229,49 @@
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
         }
 
-        function renderSites() {
+        function renderSitesInDashboard() {
+            loadSites();
             return `
-                <div class="min-h-screen">
-                    <nav class="bg-gray-800 border-b border-gray-700 px-6 py-4">
-                        <div class="flex justify-between items-center">
-                            <span class="text-xl font-bold text-white">Blog Platform</span>
-                            <button onclick="logout()" class="text-gray-400 hover:text-white">Logout</button>
+                <div class="flex justify-between items-center mb-6">
+                    <h1 class="text-2xl font-bold text-white">Sites</h1>
+                    <button onclick="showNewSiteForm()" class="btn-primary text-white px-4 py-2 rounded">New Site</button>
+                </div>
+                <div id="sites-list" class="grid gap-4"></div>
+                <div id="new-site-form" class="hidden card p-6 rounded-lg mt-6">
+                    <h2 class="text-xl font-bold text-white mb-4">Create New Site</h2>
+                    <form onsubmit="createSite(event)">
+                        <div class="mb-4">
+                            <label class="block text-gray-400 mb-2">Site Name</label>
+                            <input type="text" id="site-name" class="w-full rounded px-4 py-2" required>
                         </div>
-                    </nav>
-                    <main class="p-6">
-                        <div class="flex justify-between items-center mb-6">
-                            <h1 class="text-2xl font-bold text-white">Sites</h1>
-                            <button onclick="showNewSite()" class="btn-primary text-white px-4 py-2 rounded">New Site</button>
+                        <div class="mb-4">
+                            <label class="block text-gray-400 mb-2">Description</label>
+                            <textarea id="site-description" class="w-full rounded px-4 py-2" rows="3" placeholder="A brief description of your site"></textarea>
                         </div>
-                        <div id="sites-list" class="grid gap-4"></div>
-                        <div id="new-site-form" class="hidden card p-6 rounded-lg mt-6">
-                            <h2 class="text-xl font-bold text-white mb-4">Create New Site</h2>
-                            <form onsubmit="createSite(event)">
-                                <div class="mb-4">
-                                    <label class="block text-gray-400 mb-2">Site Name</label>
-                                    <input type="text" id="site-name" class="w-full rounded px-4 py-2" required>
-                                </div>
-                                <div class="mb-4">
-                                    <label class="block text-gray-400 mb-2">Subdomain</label>
-                                    <input type="text" id="site-subdomain" class="w-full rounded px-4 py-2" placeholder="myblog">
-                                </div>
-                                <button type="submit" class="btn-primary text-white px-4 py-2 rounded">Create</button>
-                                <button type="button" onclick="render()" class="btn-secondary text-white px-4 py-2 rounded ml-2">Cancel</button>
-                            </form>
+                        <div class="mb-4">
+                            <label class="block text-gray-400 mb-2">Subdomain</label>
+                            <input type="text" id="site-subdomain" class="w-full rounded px-4 py-2" placeholder="myblog">
                         </div>
-                        <div id="edit-site-form" class="hidden card p-6 rounded-lg mt-6">
-                            <h2 class="text-xl font-bold text-white mb-4">Site Settings</h2>
-                            <form onsubmit="saveSite(event)">
-                                <input type="hidden" id="edit-site-id">
-                                <div class="mb-4">
-                                    <label class="block text-gray-400 mb-2">Site Name</label>
-                                    <input type="text" id="edit-site-name" class="w-full rounded px-4 py-2" required>
-                                </div>
-                                <div class="mb-4">
-                                    <label class="block text-gray-400 mb-2">Description</label>
-                                    <textarea id="edit-site-description" class="w-full rounded px-4 py-2" rows="3"></textarea>
-                                </div>
-                                <div class="mb-4">
-                                    <label class="block text-gray-400 mb-2">Subdomain</label>
-                                    <input type="text" id="edit-site-subdomain" class="w-full rounded px-4 py-2">
-                                </div>
-                                <button type="submit" class="btn-primary text-white px-4 py-2 rounded">Save</button>
-                                <button type="button" onclick="closeEditSite()" class="btn-secondary text-white px-4 py-2 rounded ml-2">Cancel</button>
-                            </form>
-                        </div>
-                    </main>
+                        <button type="submit" class="btn-primary text-white px-4 py-2 rounded">Create</button>
+                        <button type="button" onclick="hideNewSiteForm()" class="btn-secondary text-white px-4 py-2 rounded ml-2">Cancel</button>
+                    </form>
                 </div>
             `;
         }
 
+        function showNewSiteForm() {
+            document.getElementById('new-site-form').classList.remove('hidden');
+        }
+
+        function hideNewSiteForm() {
+            document.getElementById('new-site-form').classList.add('hidden');
+        }
+
         async function loadSites() {
             try {
-                const res = await fetch(API_BASE + '/api/sites');
+                const res = await fetch(API_BASE + '/api/sites', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
                 if (res.ok) {
                     const sites = await res.json();
                     const list = document.getElementById('sites-list');
@@ -265,8 +285,26 @@
                                     <p class="text-gray-400 text-sm">${site.subdomain || 'No domain'}</p>
                                 </div>
                                 <div class="flex gap-2">
-                                    <button onclick="editSite('${site.id}')" class="btn-secondary text-white px-3 py-1 rounded">Settings</button>
+                                    <button onclick="toggleSiteEdit('${site.id}')" class="btn-secondary text-white px-3 py-1 rounded">Settings</button>
                                     <button onclick="selectSite('${site.id}')" class="btn-primary text-white px-3 py-1 rounded">Manage</button>
+                                </div>
+                            </div>
+                            <div id="edit-form-${site.id}" class="hidden mt-4 p-4 bg-gray-700 rounded-lg">
+                                <div class="mb-4">
+                                    <label class="block text-gray-400 mb-1 text-sm">Name</label>
+                                    <input type="text" id="name-${site.id}" value="${site.name || ''}" class="w-full rounded px-3 py-2 bg-gray-800 text-white border border-gray-600">
+                                </div>
+                                <div class="mb-4">
+                                    <label class="block text-gray-400 mb-1 text-sm">Description</label>
+                                    <textarea id="desc-${site.id}" class="w-full rounded px-3 py-2 bg-gray-800 text-white border border-gray-600" rows="2">${site.description || ''}</textarea>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="block text-gray-400 mb-1 text-sm">Subdomain</label>
+                                    <input type="text" id="subdomain-${site.id}" value="${site.subdomain || ''}" class="w-full rounded px-3 py-2 bg-gray-800 text-white border border-gray-600">
+                                </div>
+                                <div class="flex gap-2">
+                                    <button onclick="saveSiteInline('${site.id}')" class="btn-primary text-white px-3 py-1 rounded">Save</button>
+                                    <button onclick="toggleSiteEdit('${site.id}')" class="btn-secondary text-white px-3 py-1 rounded">Cancel</button>
                                 </div>
                             </div>
                         `).join('');
@@ -279,9 +317,43 @@
             document.getElementById('new-site-form').classList.remove('hidden');
         }
 
+        function toggleSiteEdit(siteId) {
+            document.querySelectorAll('[id^="edit-form-"]').forEach(el => {
+                if (el.id !== 'edit-form-' + siteId) el.classList.add('hidden');
+            });
+            const form = document.getElementById('edit-form-' + siteId);
+            form.classList.toggle('hidden');
+        }
+
+        async function saveSiteInline(siteId) {
+            const name = document.getElementById('name-' + siteId).value;
+            const description = document.getElementById('desc-' + siteId).value;
+            const subdomain = document.getElementById('subdomain-' + siteId).value;
+            
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + siteId, {
+                    method: 'PUT',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify({ name, description, subdomain })
+                });
+                if (res.ok) {
+                    showToast('Site saved!');
+                    toggleSiteEdit(siteId);
+                    loadSites();
+                } else {
+                    showToast('Failed to save', 'error');
+                }
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }
+
         async function editSite(siteId) {
             try {
-                const res = await fetch(API_BASE + '/api/sites/' + siteId);
+                const res = await fetch(API_BASE + '/api/sites/' + siteId, {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
                 if (res.ok) {
                     const site = await res.json();
                     document.getElementById('edit-site-id').value = site.id;
@@ -303,7 +375,10 @@
             try {
                 const res = await fetch(API_BASE + '/api/sites/' + siteId, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
                     body: JSON.stringify({ name, description, subdomain })
                 });
                 if (res.ok) {
@@ -311,7 +386,7 @@
                     document.getElementById('edit-site-form').classList.add('hidden');
                     loadSites();
                 } else {
-showToast('Failed to save', 'error');
+                    showToast('Failed to save', 'error');
                 }
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
         }
@@ -323,19 +398,32 @@ showToast('Failed to save', 'error');
         async function createSite(e) {
             e.preventDefault();
             const name = document.getElementById('site-name').value;
+            const description = document.getElementById('site-description').value;
             const subdomain = document.getElementById('site-subdomain').value;
             try {
                 const res = await fetch(API_BASE + '/api/sites', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, subdomain: subdomain || null })
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify({ name, description: description || null, subdomain: subdomain || null })
                 });
                 if (res.ok) {
                     const site = await res.json();
                     currentSite = site.id;
                     render();
                 } else {
-                    showToast('Failed to create site', 'error');
+                    const contentType = res.headers.get('content-type');
+                    let msg = 'Failed to create site';
+                    if (contentType && contentType.includes('application/json')) {
+                        const err = await res.json();
+                        msg = err.message || msg;
+                    } else {
+                        const text = await res.text();
+                        msg = text || msg;
+                    }
+                    showToast(msg, 'error');
                 }
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
         }
@@ -360,7 +448,7 @@ showToast('Failed to save', 'error');
                         <div class="flex justify-between items-center">
                             <span class="text-xl font-bold text-white">Blog Platform</span>
                             <div class="flex items-center gap-4">
-                                <button onclick="currentSite=null; render()" class="text-gray-400 hover:text-white">Sites</button>
+                                <button onclick="currentSite=null; currentView='sites'; render()" class="text-gray-400 hover:text-white">Sites</button>
                                 <button onclick="logout()" class="text-gray-400 hover:text-white">Logout</button>
                             </div>
                         </div>
@@ -553,6 +641,7 @@ showToast('Failed to save', 'error');
             try {
                 const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/media', {
                     method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + authToken },
                     body: formData
                 });
                 if (res.ok) {
@@ -750,7 +839,9 @@ showToast('Failed to save', 'error');
         async function loadPosts() {
             if (!currentSite) return;
             try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/posts');
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/posts', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
                 if (res.ok) {
                     const posts = await res.json();
                     const list = document.getElementById('posts-list');
@@ -776,7 +867,9 @@ showToast('Failed to save', 'error');
 
         async function editPost(id) {
             try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/posts/' + id);
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/posts/' + id, {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
                 if (res.ok) {
                     const post = await res.json();
                     editingPostId = post.id;
@@ -850,13 +943,19 @@ showToast('Failed to save', 'error');
                 if (editingPostId) {
                     res = await fetch(API_BASE + '/api/sites/' + currentSite + '/posts/' + editingPostId, {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + authToken
+                        },
                         body: JSON.stringify(payload)
                     });
                 } else {
                     res = await fetch(API_BASE + '/api/sites/' + currentSite + '/posts', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + authToken
+                        },
                         body: JSON.stringify(payload)
                     });
                 }
@@ -885,7 +984,10 @@ showToast('Failed to save', 'error');
                 if (editingPostId) {
                     res = await fetch(API_BASE + '/api/sites/' + currentSite + '/posts/' + editingPostId, {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + authToken
+                        },
                         body: JSON.stringify(payload)
                     });
                     if (res.ok) {
@@ -895,7 +997,10 @@ showToast('Failed to save', 'error');
                 } else {
                     res = await fetch(API_BASE + '/api/sites/' + currentSite + '/posts', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + authToken
+                        },
                         body: JSON.stringify(payload)
                     });
                     if (res.ok) {
@@ -906,7 +1011,10 @@ showToast('Failed to save', 'error');
                 
                 if (!editingPostId) { showToast('Failed to save', 'error'); return; }
                 
-                const publishRes = await fetch(API_BASE + '/api/sites/' + currentSite + '/posts/' + editingPostId + '/publish', { method: 'POST' });
+                const publishRes = await fetch(API_BASE + '/api/sites/' + currentSite + '/posts/' + editingPostId + '/publish', { 
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
                 if (publishRes.ok) {
                     showToast('Published!');
                     closeEditor();
@@ -919,7 +1027,10 @@ showToast('Failed to save', 'error');
         async function deletePost(id) {
             if (!confirm('Delete this post?')) return;
             try {
-                await fetch(API_BASE + '/api/sites/' + currentSite + '/posts/' + id, { method: 'DELETE' });
+                await fetch(API_BASE + '/api/sites/' + currentSite + '/posts/' + id, { 
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
                 loadPosts();
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
         }
@@ -1092,7 +1203,9 @@ showToast('Failed to save', 'error');
         async function loadPages() {
             if (!currentSite) return;
             try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages');
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
                 if (res.ok) {
                     const pages = await res.json();
                     const list = document.getElementById('pages-list');
@@ -1118,7 +1231,9 @@ showToast('Failed to save', 'error');
 
         async function editPage(id) {
             try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + id);
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + id, {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
                 if (res.ok) {
                     const page = await res.json();
                     editingPageId = page.id;
@@ -1185,13 +1300,19 @@ showToast('Failed to save', 'error');
                 if (editingPageId) {
                     res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + editingPageId, {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + authToken
+                        },
                         body: JSON.stringify(payload)
                     });
                 } else {
                     res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + authToken
+                        },
                         body: JSON.stringify(payload)
                     });
                 }
@@ -1207,7 +1328,10 @@ showToast('Failed to save', 'error');
         async function deletePage(id) {
             if (!confirm('Delete this page?')) return;
             try {
-                await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + id, { method: 'DELETE' });
+                await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + id, { 
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
                 loadPages();
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
         }
@@ -1234,7 +1358,9 @@ showToast('Failed to save', 'error');
         async function loadMedia() {
             if (!currentSite) return;
             try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/media');
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/media', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
                 if (res.ok) {
                     const media = await res.json();
                     const list = document.getElementById('media-list');
@@ -1266,6 +1392,7 @@ showToast('Failed to save', 'error');
                 try {
                     await fetch(API_BASE + '/api/sites/' + currentSite + '/media', {
                         method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + authToken },
                         body: formData
                     });
                 } catch (err) { console.error(err); }
@@ -1283,10 +1410,34 @@ showToast('Failed to save', 'error');
             `;
         }
 
+        async function loadSettingsSiteSelect() {
+            try {
+                const res = await fetch(API_BASE + '/api/sites', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (res.ok) {
+                    const sites = await res.json();
+                    const select = document.getElementById('settings-site-select');
+                    select.innerHTML = '<option value="">-- Select a site --</option>' + 
+                        sites.map(s => `<option value="${s.id}" ${s.id === currentSite ? 'selected' : ''}>${s.name}</option>`).join('');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function switchToSite(siteId) {
+            if (siteId) {
+                currentSite = siteId;
+                localStorage.setItem('blog_site_id', siteId);
+                loadSiteSettings();
+            }
+        }
+
         async function loadSiteSettings() {
             if (!currentSite) return;
             try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite);
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite, {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
                 if (res.ok) {
                     const site = await res.json();
                     const social = site.social_links || {};
@@ -1334,37 +1485,37 @@ showToast('Failed to save', 'error');
                                 <label class="flex items-center gap-2">
                                     <input type="checkbox" id="social-x" ${social.x ? 'checked' : ''}>
                                     <span class="text-gray-300">X (Twitter)</span>
-                                    <input type="text" id="social-x-url" class="ml-2 flex-1 rounded px-2 py-1 text-sm" value="${social.x || ''}" placeholder="https://x.com/username">
+                                    <input type="text" id="social-x-url" class="ml-2 flex-1 rounded px-2 py-1 text-sm" value="${social.x || ''}" placeholder="elonmusk" title="Enter username or full URL">
                                 </label>
                                 <label class="flex items-center gap-2">
                                     <input type="checkbox" id="social-facebook" ${social.facebook ? 'checked' : ''}>
                                     <span class="text-gray-300">Facebook</span>
-                                    <input type="text" id="social-facebook-url" class="ml-2 flex-1 rounded px-2 py-1 text-sm" value="${social.facebook || ''}" placeholder="https://facebook.com/username">
+                                    <input type="text" id="social-facebook-url" class="ml-2 flex-1 rounded px-2 py-1 text-sm" value="${social.facebook || ''}" placeholder="pagename" title="Enter username or full URL">
                                 </label>
                                 <label class="flex items-center gap-2">
                                     <input type="checkbox" id="social-instagram" ${social.instagram ? 'checked' : ''}>
                                     <span class="text-gray-300">Instagram</span>
-                                    <input type="text" id="social-instagram-url" class="ml-2 flex-1 rounded px-2 py-1 text-sm" value="${social.instagram || ''}" placeholder="https://instagram.com/username">
+                                    <input type="text" id="social-instagram-url" class="ml-2 flex-1 rounded px-2 py-1 text-sm" value="${social.instagram || ''}" placeholder="username" title="Enter username or full URL">
                                 </label>
                                 <label class="flex items-center gap-2">
                                     <input type="checkbox" id="social-linkedin" ${social.linkedin ? 'checked' : ''}>
                                     <span class="text-gray-300">LinkedIn</span>
-                                    <input type="text" id="social-linkedin-url" class="ml-2 flex-1 rounded px-2 py-1 text-sm" value="${social.linkedin || ''}" placeholder="https://linkedin.com/in/username">
+                                    <input type="text" id="social-linkedin-url" class="ml-2 flex-1 rounded px-2 py-1 text-sm" value="${social.linkedin || ''}" placeholder="username" title="Enter username or full URL">
                                 </label>
                                 <label class="flex items-center gap-2">
                                     <input type="checkbox" id="social-youtube" ${social.youtube ? 'checked' : ''}>
                                     <span class="text-gray-300">YouTube</span>
-                                    <input type="text" id="social-youtube-url" class="ml-2 flex-1 rounded px-2 py-1 text-sm" value="${social.youtube || ''}" placeholder="https://youtube.com/@username">
+                                    <input type="text" id="social-youtube-url" class="ml-2 flex-1 rounded px-2 py-1 text-sm" value="${social.youtube || ''}" placeholder="@channel" title="Enter username or full URL">
                                 </label>
                                 <label class="flex items-center gap-2">
                                     <input type="checkbox" id="social-github" ${social.github ? 'checked' : ''}>
                                     <span class="text-gray-300">GitHub</span>
-                                    <input type="text" id="social-github-url" class="ml-2 flex-1 rounded px-2 py-1 text-sm" value="${social.github || ''}" placeholder="https://github.com/username">
+                                    <input type="text" id="social-github-url" class="ml-2 flex-1 rounded px-2 py-1 text-sm" value="${social.github || ''}" placeholder="username" title="Enter username or full URL">
                                 </label>
                                 <label class="flex items-center gap-2">
                                     <input type="checkbox" id="social-tiktok" ${social.tiktok ? 'checked' : ''}>
                                     <span class="text-gray-300">TikTok</span>
-                                    <input type="text" id="social-tiktok-url" class="ml-2 flex-1 rounded px-2 py-1 text-sm" value="${social.tiktok || ''}" placeholder="https://tiktok.com/@username">
+                                    <input type="text" id="social-tiktok-url" class="ml-2 flex-1 rounded px-2 py-1 text-sm" value="${social.tiktok || ''}" placeholder="@username" title="Enter username or full URL">
                                 </label>
                             </div>
                             
@@ -1457,10 +1608,22 @@ showToast('Failed to save', 'error');
             // Collect social links
             const social_links = {};
             const socials = ['x', 'facebook', 'instagram', 'linkedin', 'youtube', 'github', 'tiktok'];
+            const baseUrls = {
+                x: 'https://x.com/',
+                facebook: 'https://facebook.com/',
+                instagram: 'https://instagram.com/',
+                linkedin: 'https://linkedin.com/in/',
+                youtube: 'https://youtube.com/@',
+                github: 'https://github.com/',
+                tiktok: 'https://tiktok.com/@'
+            };
             socials.forEach(s => {
                 const enabled = document.getElementById('social-' + s).checked;
-                const url = document.getElementById('social-' + s + '-url').value;
+                let url = document.getElementById('social-' + s + '-url').value.trim();
                 if (enabled && url) {
+                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                        url = baseUrls[s] + url;
+                    }
                     social_links[s] = url;
                 }
             });
@@ -1468,7 +1631,10 @@ showToast('Failed to save', 'error');
             try {
                 const res = await fetch(API_BASE + '/api/sites/' + currentSite, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
                     body: JSON.stringify({
                         name,
                         description,
@@ -1502,7 +1668,9 @@ showToast('Failed to save', 'error');
         async function loadContact() {
             if (!currentSite) return;
             try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/contact');
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/contact', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
                 if (res.ok) {
                     const submissions = await res.json();
                     const list = document.getElementById('contact-list');

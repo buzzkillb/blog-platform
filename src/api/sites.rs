@@ -102,16 +102,20 @@ pub async fn create(
         return Err(ApiError::new("Site name is required"));
     }
 
+    let subdomain = payload.subdomain.filter(|s| !s.is_empty());
+    let custom_domain = payload.custom_domain.filter(|s| !s.is_empty());
+
     let row = sqlx::query(
-        "INSERT INTO sites (subdomain, custom_domain, name, description, logo_url, homepage_type, nav_links) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, subdomain, custom_domain, name, description, logo_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, landing_blocks, settings, created_at"
+        "INSERT INTO sites (subdomain, custom_domain, name, description, logo_url, homepage_type, nav_links, blog_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, subdomain, custom_domain, name, description, logo_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, landing_blocks, settings, created_at, blog_path"
     )
-    .bind(&payload.subdomain)
-    .bind(&payload.custom_domain)
+    .bind(subdomain)
+    .bind(custom_domain)
     .bind(&payload.name)
     .bind(&payload.description)
     .bind(&payload.logo_url)
     .bind("both")
     .bind(serde_json::json!([{"label": "Home", "url": "/"}, {"label": "Blog", "url": "/blog"}, {"label": "About", "url": "/about"}, {"label": "Contact", "url": "/contact"}]))
+    .bind("/blog")
     .fetch_one(&state.db)
     .await
     .map_err(|e| ApiError::new(format!("Failed to create site: {}", e)))?;
@@ -216,6 +220,14 @@ pub async fn update(
 
     let name = payload.get("name").and_then(|v| v.as_str());
     let description = payload.get("description").and_then(|v| v.as_str());
+    let subdomain = payload
+        .get("subdomain")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty());
+    let custom_domain = payload
+        .get("custom_domain")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty());
     let logo_url = payload.get("logo_url").and_then(|v| v.as_str());
     let theme = payload.get("theme").and_then(|v| v.as_str());
     let nav_links = payload.get("nav_links");
@@ -233,24 +245,28 @@ pub async fn update(
         "UPDATE sites SET 
             name = COALESCE($2, name), 
             description = COALESCE($3, description), 
-            logo_url = COALESCE($4, logo_url), 
-            theme = COALESCE($5, theme),
-            nav_links = COALESCE($6, nav_links),
-            footer_text = COALESCE($7, footer_text),
-            social_links = COALESCE($8, social_links),
-            contact_phone = COALESCE($9, contact_phone),
-            contact_email = COALESCE($10, contact_email),
-            contact_address = COALESCE($11, contact_address),
-            homepage_type = COALESCE($12, homepage_type),
-            blog_path = $13,
-            landing_blocks = COALESCE($14, landing_blocks),
-            settings = COALESCE($15, settings)
+            subdomain = COALESCE($4, subdomain),
+            custom_domain = COALESCE($5, custom_domain),
+            logo_url = COALESCE($6, logo_url), 
+            theme = COALESCE($7, theme),
+            nav_links = COALESCE($8, nav_links),
+            footer_text = COALESCE($9, footer_text),
+            social_links = COALESCE($10, social_links),
+            contact_phone = COALESCE($11, contact_phone),
+            contact_email = COALESCE($12, contact_email),
+            contact_address = COALESCE($13, contact_address),
+            homepage_type = COALESCE($14, homepage_type),
+            blog_path = $15,
+            landing_blocks = COALESCE($16, landing_blocks),
+            settings = COALESCE($17, settings)
          WHERE id = $1 
          RETURNING id, subdomain, custom_domain, name, description, logo_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at"
     )
     .bind(id)
     .bind(name)
     .bind(description)
+    .bind(subdomain)
+    .bind(custom_domain)
     .bind(logo_url)
     .bind(theme)
     .bind(nav_links)
