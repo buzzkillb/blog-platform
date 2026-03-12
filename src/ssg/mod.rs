@@ -91,7 +91,7 @@ pub async fn build_site(
     let homepage = pages.iter().find(|p| p.3);
     let other_pages: Vec<_> = pages.iter().filter(|p| !p.3).collect();
 
-    let output_dir = std::path::Path::new("output").join(site_id.to_string());
+    let output_dir = std::path::Path::new("output");
     std::fs::create_dir_all(&output_dir)?;
 
     let ctx = context! {

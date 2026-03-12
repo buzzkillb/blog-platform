@@ -73,6 +73,21 @@ async fn main() {
 
     let state = AppState { db };
 
+    let output_dir = std::path::Path::new("output");
+    let needs_build = !output_dir.exists() || std::fs::read_dir(output_dir).map(|mut e| e.next().is_none()).unwrap_or(true);
+    if needs_build {
+        if let Ok(site) = sqlx::query("SELECT id FROM sites LIMIT 1")
+            .fetch_one(&state.db)
+            .await
+        {
+            let site_id: uuid::Uuid = site.get("id");
+            tracing::info!("Building static site for site_id: {}", site_id);
+            if let Err(e) = ssg::build_site(&state.db, site_id).await {
+                tracing::error!("Failed to build static site: {}", e);
+            }
+        }
+    }
+
     let static_files = ServeDir::new(".");
 
     let media_files = ServeDir::new("media");
@@ -82,21 +97,16 @@ async fn main() {
         .allow_methods(Any)
         .allow_headers(Any);
 
+    let output_base = std::path::Path::new("output");
+    let static_output = ServeDir::new(output_base);
+
     let app = Router::new()
-        .route("/", get(root_handler))
         .route("/health", get(health_check))
         .route("/admin", get(admin_handler))
         .route("/admin/{*path}", get(admin_handler))
-        .route("/sitemap.xml", get(sitemap_handler))
-        .route("/feed.xml", get(feed_handler))
-        .route("/post/{slug}", get(handlers::view_post))
-        .route("/blog", get(handlers::view_blog))
-        .route("/about", get(handlers::view_about))
-        .route("/contact", get(handlers::view_contact))
-        .route("/page/{slug}", get(handlers::view_page))
-        .route("/output/{site_id}/{*path}", get(output_handler))
         .nest_service("/static", static_files.clone())
         .nest_service("/media", media_files)
+        .fallback_service(static_output)
         .merge(api::routes())
         .layer(cors)
         .with_state(state);
