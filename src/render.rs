@@ -31,6 +31,23 @@ pub fn render_social_links(social_links: &serde_json::Value) -> String {
             .filter_map(|(platform, url)| {
                 let url_str = url.as_str()?;
                 if url_str.is_empty() { return None; }
+                
+                let full_url = if !url_str.contains("://") {
+                    let base = match platform.as_str() {
+                        "x" => "https://x.com/",
+                        "facebook" => "https://facebook.com/",
+                        "instagram" => "https://instagram.com/",
+                        "linkedin" => "https://linkedin.com/in/",
+                        "youtube" => "https://youtube.com/@",
+                        "github" => "https://github.com/",
+                        "tiktok" => "https://tiktok.com/@",
+                        _ => "https://"
+                    };
+                    format!("{}{}", base, url_str)
+                } else {
+                    url_str.to_string()
+                };
+                
                 let icon = match platform.as_str() {
                     "x" => "fa-x-twitter",
                     "facebook" => "fa-facebook", 
@@ -43,7 +60,7 @@ pub fn render_social_links(social_links: &serde_json::Value) -> String {
                 };
                 Some(format!(
                     "<a href=\"{}\" target=\"_blank\" class=\"text-gray-500 hover:text-gray-700\"><i class=\"fa-brands {}\"></i></a>",
-                    url_str, icon
+                    full_url, icon
                 ))
             })
             .collect::<Vec<_>>()
