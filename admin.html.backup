@@ -1292,7 +1292,7 @@
                                     <p class="text-gray-400 text-sm">/${page.slug}${page.is_homepage ? ' (Homepage)' : ''}</p>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <button onclick="togglePageNav('${page.id}', ${page.show_in_nav !== false})" class="px-2 py-1 rounded text-xs ${page.show_in_nav !== false ? 'bg-green-600' : 'bg-gray-600'} text-white" title="${page.show_in_nav !== false ? 'Click to hide from nav' : 'Click to show in nav'}">
+                                    <button onclick="togglePageNav('${page.id}', ${!(page.show_in_nav !== false)})" class="px-2 py-1 rounded text-xs ${page.show_in_nav !== false ? 'bg-green-600' : 'bg-gray-600'} text-white" title="${page.show_in_nav !== false ? 'Click to hide from nav' : 'Click to show in nav'}">
                                         ${page.show_in_nav !== false ? 'Nav' : 'Hidden'}
                                     </button>
                                     <input type="number" value="${page.sort_order || 0}" 
@@ -1329,10 +1329,9 @@
                 
                 item.addEventListener('dragover', function(e) {
                     e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
                 });
                 
-                item.addEventListener('drop', async function(e) {
+                item.addEventListener('drop', function(e) {
                     e.preventDefault();
                     if (draggedItem && draggedItem !== this) {
                         const fromId = draggedItem.dataset.pageId;
@@ -1341,8 +1340,8 @@
                         const toOrder = parseInt(this.dataset.sortOrder);
                         
                         // Swap sort orders
-                        await updatePageSortOrder(fromId, toOrder);
-                        await updatePageSortOrder(toId, fromOrder);
+                        updatePageSortOrder(fromId, toOrder);
+                        updatePageSortOrder(toId, fromOrder);
                         
                         loadPages();
                     }
@@ -1350,9 +1349,7 @@
             });
         }
         
-        async function togglePageNav(pageId, currentShowInNav) {
-            // Toggle: if currently shown (true), hide it (false); if hidden, show it (true)
-            const showInNav = !currentShowInNav;
+        async function togglePageNav(pageId, showInNav) {
             try {
                 const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + pageId, {
                     method: 'PUT',
