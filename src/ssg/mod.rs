@@ -132,6 +132,22 @@ pub async fn build_site(
     let index_html = index_template.render(ctx)?;
     std::fs::write(output_dir.join("index.html"), index_html)?;
 
+    // Generate blog listing page
+    let blog_ctx = context! {
+        site_name => site_name,
+        site_description => site_description,
+        logo_url => logo_url,
+        nav_links => nav_links,
+        footer_text => footer_text,
+        social_links => social_links,
+        contact_phone => contact_phone,
+        contact_email => contact_email,
+        contact_address => contact_address,
+        posts => posts_data.clone(),
+    };
+    let blog_html = index_template.render(blog_ctx)?;
+    std::fs::write(output_dir.join("blog.html"), blog_html)?;
+
     for post in &posts {
         let post_ctx = context! {
             site_name => site_name,
