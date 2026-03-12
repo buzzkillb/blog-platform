@@ -128,11 +128,6 @@
 {% block content %}{% endblock %}
         </div>
     </main>
-    {% if title and title != "Home" and title != site_name %}
-    <nav aria-label="Breadcrumb" class="container" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
-        <a href="/">Home</a> &gt; <span>{{ title }}</span>
-    </nav>
-    {% endif %}
     <footer>
         <div class="container">
             {% if contact_phone or contact_email or contact_address %}
