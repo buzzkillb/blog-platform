@@ -154,7 +154,9 @@
                 {% if social_links.tiktok %}<a href="{{ social_links.tiktok }}" target="_blank" style="color: #8b949e;"><i class="fab fa-tiktok"></i></a>{% endif %}
             </div>
             {% if footer_text %}
-            <div class="text-center text-gray-500 text-sm mt-4">{{ footer_text }}</div>
+            <div style="text-align: center; color: #8b949e; font-size: 0.875rem; margin-top: 1rem;">{{ footer_text }}</div>
+            {% else %}
+            <div style="text-align: center; color: #8b949e; font-size: 0.875rem; margin-top: 1rem;">&copy; 2026 {{ site_name }}. All rights reserved.</div>
             {% endif %}
         </div>
     </footer>
