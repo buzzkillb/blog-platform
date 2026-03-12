@@ -1,17 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
     <title>{{ site_name }}</title>
-    <link href="/" rel="alternate"/>
-    <link href="/feed.xml" rel="self"/>
-    <id>/</id>
-    <updated>{{ posts[0].published_at | default(value='') }}T00:00:00Z</updated>
+    <link>{{ site_url }}</link>
+    <description>{% if site_description %}{{ site_description }}{% else %}{{ site_name }}{% endif %}</description>
+    <language>en-us</language>
+    <atom:link href="{{ site_url }}/feed.xml" rel="self" type="application/rss+xml"/>
     {% for post in posts %}
-    <entry>
+    <item>
         <title>{{ post.title }}</title>
-        <link href="/{{ post.slug }}.html"/>
-        <id>/{{ post.slug }}.html</id>
-        <updated>{{ post.published_at }}T00:00:00Z</updated>
-        <summary>{{ post.excerpt | default(value='') }}</summary>
-    </entry>
+        <link>{{ site_url }}/blog/{{ post.slug }}</link>
+        <guid isPermaLink="true">{{ site_url }}/blog/{{ post.slug }}</guid>
+        <pubDate>{{ post.published_at }}</pubDate>
+        {% if post.excerpt %}<description><![CDATA[{{ post.excerpt }}]]></description>{% endif %}
+    </item>
     {% endfor %}
-</feed>
+</channel>
+</rss>
