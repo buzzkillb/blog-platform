@@ -110,7 +110,7 @@ pub async fn build_site(
             .iter()
             .map(|p| format!(
                 r#"<url>
-    <loc>{}/{}</loc>
+    <loc>{}/blog/{}</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
 </url>"#,
@@ -237,11 +237,13 @@ pub async fn build_site(
             excerpt => &post.3,
             featured_image => &post.4,
             published_at => post.5.format("%Y-%m-%d").to_string(),
-            url => format!("/{}", post.1),
+            url => format!("/blog/{}", post.1),
         };
         let post_template = env.get_template("page")?;
         let post_html = post_template.render(post_ctx)?;
-        std::fs::write(output_dir.join(format!("{}.html", post.1)), post_html)?;
+        let blog_dir = output_dir.join("blog");
+        std::fs::create_dir_all(&blog_dir)?;
+        std::fs::write(blog_dir.join(format!("{}.html", post.1)), post_html)?;
     }
 
     if let Some(home) = homepage {
