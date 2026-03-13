@@ -348,7 +348,7 @@ pub async fn build_site(
         );
         post_ctx.insert(
             "url".into(),
-            minijinja::Value::from(format!("/blog/{}", post.1)),
+            minijinja::Value::from_serialize(format!("/blog/{}", post.1)),
         );
         post_ctx.insert("is_blog_post".into(), minijinja::Value::from(true));
 
