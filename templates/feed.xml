@@ -9,8 +9,8 @@
     {% for post in posts %}
     <item>
         <title>{{ post.title }}</title>
-        <link>{{ site_url }}/blog/{{ post.slug }}</link>
-        <guid isPermaLink="true">{{ site_url }}/blog/{{ post.slug }}</guid>
+        <link>{{ site_url }}/blog/{{ post.slug }}.html</link>
+        <guid isPermaLink="true">{{ site_url }}/blog/{{ post.slug }}.html</guid>
         <pubDate>{{ post.published_at }}</pubDate>
         {% if post.excerpt %}<description><![CDATA[{{ post.excerpt }}]]></description>{% endif %}
     </item>

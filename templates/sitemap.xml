@@ -6,20 +6,20 @@
         <priority>1.0</priority>
     </url>
     <url>
-        <loc>{{ site_url }}/blog</loc>
+        <loc>{{ site_url }}/blog.html</loc>
         <changefreq>daily</changefreq>
         <priority>0.9</priority>
     </url>
     {% for slug in pages %}
     <url>
-        <loc>{{ site_url }}/{{ slug }}</loc>
+        <loc>{{ site_url }}/{{ slug }}.html</loc>
         <changefreq>monthly</changefreq>
         <priority>0.5</priority>
     </url>
     {% endfor %}
     {% for slug in posts %}
     <url>
-        <loc>{{ site_url }}/blog/{{ slug }}</loc>
+        <loc>{{ site_url }}/blog/{{ slug }}.html</loc>
         <changefreq>weekly</changefreq>
         <priority>0.8</priority>
     </url>

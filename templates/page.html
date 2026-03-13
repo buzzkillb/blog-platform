@@ -15,7 +15,7 @@
             {% for post in posts %}
             <article class="post-card">
                 <h2>
-                    <a href="/blog/{{ post.slug }}">{{ post.title }}</a>
+                    <a href="/blog/{{ post.slug }}.html">{{ post.title }}</a>
                 </h2>
                 {% if post.excerpt %}<p class="excerpt">{{ post.excerpt }}</p>{% endif %}
                 <small class="date">{{ post.published_at }}</small>
