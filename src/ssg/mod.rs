@@ -303,7 +303,10 @@ pub async fn build_site(
         "posts".into(),
         minijinja::Value::from_serialize(&posts_data),
     );
-    ctx.insert("url".into(), minijinja::Value::from("/"));
+    ctx.insert(
+        "url".into(),
+        minijinja::Value::from_safe_string("/".to_string()),
+    );
 
     let index_template = env.get_template("index.html")?;
     let index_html = index_template.render(&ctx)?;
@@ -348,7 +351,7 @@ pub async fn build_site(
         );
         post_ctx.insert(
             "url".into(),
-            minijinja::Value::from_serialize(format!("/blog/{}", post.1)),
+            minijinja::Value::from_safe_string(format!("/blog/{}", post.1)),
         );
         post_ctx.insert("is_blog_post".into(), minijinja::Value::from(true));
 
@@ -378,6 +381,10 @@ pub async fn build_site(
             "content".into(),
             minijinja::Value::from(render_blocks(&home.2)),
         );
+        page_ctx.insert(
+            "url".into(),
+            minijinja::Value::from_safe_string("/".to_string()),
+        );
 
         let page_template = env.get_template("page.html")?;
         let page_html = page_template.render(&page_ctx)?;
@@ -405,7 +412,10 @@ pub async fn build_site(
             "content".into(),
             minijinja::Value::from(render_blocks(&page.2)),
         );
-        page_ctx.insert("url".into(), minijinja::Value::from(format!("/{}", page.1)));
+        page_ctx.insert(
+            "url".into(),
+            minijinja::Value::from_safe_string(format!("/{}", page.1)),
+        );
 
         if is_blog {
             page_ctx.insert(

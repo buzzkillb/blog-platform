@@ -8,7 +8,7 @@
     <meta name="generator" content="Blog Platform">
     {% if favicon_url %}<link rel="icon" type="image/x-icon" href="{{ favicon_url }}">{% endif %}
     {% if logo_url %}<link rel="icon" type="image/png" href="{{ logo_url }}">{% endif %}
-    <link rel="canonical" href="{{ url }}">
+    <link rel="canonical" href="{{ url | safe }}">
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
