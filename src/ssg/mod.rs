@@ -350,6 +350,7 @@ pub async fn build_site(
             "url".into(),
             minijinja::Value::from(format!("/blog/{}", post.1)),
         );
+        post_ctx.insert("is_blog_post".into(), minijinja::Value::from(true));
 
         let post_template = env.get_template("page.html")?;
         let post_html = post_template.render(&post_ctx)?;
