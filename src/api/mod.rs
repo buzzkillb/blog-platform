@@ -71,13 +71,15 @@ async fn build_site(
         .await
         .map_err(|e| ApiError::new(e.message))?;
 
-    // Build the site
+    // Build the site synchronously so we can return result
     let db = state.db.clone();
-    tokio::spawn(async move {
-        if let Err(e) = crate::ssg::build_site(&db, site_id).await {
+    match crate::ssg::build_site(&db, site_id).await {
+        Ok(_) => Ok(Json(
+            serde_json::json!({ "message": "Site built successfully" }),
+        )),
+        Err(e) => {
             tracing::error!("Failed to build site: {}", e);
+            Err(ApiError::new(format!("Failed to build site: {}", e)))
         }
-    });
-
-    Ok(Json(serde_json::json!({ "message": "Site build started" })))
+    }
 }

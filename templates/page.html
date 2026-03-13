@@ -5,17 +5,18 @@
     <h1>{{ title }}</h1>
     
     <div class="content">
-        {% if title == "Blog" and posts %}
+        {% if posts %}
             {% for post in posts %}
-            <article class="mb-8">
-                <h2 class="text-2xl font-bold">
-                    <a href="/blog/{{ post.slug }}" class="text-blue-600">{{ post.title }}</a>
+            <article class="post-card">
+                <h2>
+                    <a href="/blog/{{ post.slug }}">{{ post.title }}</a>
                 </h2>
-                {% if post.excerpt %}<p class="text-gray-600">{{ post.excerpt }}</p>{% endif %}
-                <small class="text-gray-500">{{ post.published_at }}</small>
+                {% if post.excerpt %}<p class="excerpt">{{ post.excerpt }}</p>{% endif %}
+                <small class="date">{{ post.published_at }}</small>
             </article>
             {% endfor %}
         {% else %}
+            {% if featured_image %}<img src="{{ featured_image }}" alt="{{ title }}" style="width:100%; max-height:400px; object-fit:cover; border-radius:8px; margin-bottom:1.5rem;">{% endif %}
             {{ content | safe }}
         {% endif %}
     </div>

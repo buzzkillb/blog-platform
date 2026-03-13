@@ -8,6 +8,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::api::auth::{require_auth, require_site_member};
+use crate::models::ContactSubmissionRow;
 use crate::{ApiError, AppState, ContactSubmission, CreateSiteRequest, Site};
 
 pub async fn list(
@@ -366,9 +367,7 @@ pub async fn list_contact_submissions(
     let current_user = require_auth(State(state.clone()), headers).await?;
     require_site_member(&state, site_id, current_user.user_id).await?;
 
-    let submissions = sqlx::query_as::<_, (
-        Uuid, Uuid, String, String, String, chrono::DateTime<chrono::Utc>, bool
-    )>(
+    let submissions = sqlx::query_as::<_, ContactSubmissionRow>(
         "SELECT id, site_id, name, email, message, created_at, read FROM contact_submissions WHERE site_id = $1 ORDER BY created_at DESC"
     )
     .bind(site_id)

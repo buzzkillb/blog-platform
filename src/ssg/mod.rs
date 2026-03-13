@@ -1,11 +1,21 @@
-use minijinja::{context, Environment};
+use minijinja::Environment;
 use sqlx::Row;
 use uuid::Uuid;
+
+/// Escape HTML special characters to prevent XSS attacks
+fn escape_html<S: AsRef<str>>(s: S) -> String {
+    let s = s.as_ref();
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
 
 fn extract_first_image(content: &serde_json::Value) -> Option<String> {
     if let Some(blocks) = content.as_array() {
         for block in blocks {
-            if let Some(block_type) = block.get("type").and_then(|t| t.as_str()) {
+            if let Some(block_type) = block.get("block_type").and_then(|t| t.as_str()) {
                 if block_type == "image" {
                     if let Some(img_content) = block.get("content") {
                         if let Some(url) = img_content.get("url").and_then(|u| u.as_str()) {
@@ -21,12 +31,68 @@ fn extract_first_image(content: &serde_json::Value) -> Option<String> {
     None
 }
 
+type Context = std::collections::HashMap<String, minijinja::Value>;
+
+#[allow(clippy::too_many_arguments)]
+fn make_context(
+    site_name: &str,
+    site_description: &Option<String>,
+    logo_url: &Option<String>,
+    favicon_url: &Option<String>,
+    nav_links: &[serde_json::Value],
+    footer_text: &Option<String>,
+    social_links: &serde_json::Value,
+    contact_phone: &Option<String>,
+    contact_email: &Option<String>,
+    contact_address: &Option<String>,
+) -> Context {
+    let mut ctx = Context::new();
+    ctx.insert("site_name".into(), minijinja::Value::from(site_name));
+    ctx.insert(
+        "site_description".into(),
+        minijinja::Value::from_serialize(site_description),
+    );
+    ctx.insert(
+        "logo_url".into(),
+        minijinja::Value::from_serialize(logo_url),
+    );
+    ctx.insert(
+        "favicon_url".into(),
+        minijinja::Value::from_serialize(favicon_url),
+    );
+    ctx.insert(
+        "nav_links".into(),
+        minijinja::Value::from_serialize(nav_links),
+    );
+    ctx.insert(
+        "footer_text".into(),
+        minijinja::Value::from_serialize(footer_text),
+    );
+    ctx.insert(
+        "social_links".into(),
+        minijinja::Value::from_serialize(social_links),
+    );
+    ctx.insert(
+        "contact_phone".into(),
+        minijinja::Value::from_serialize(contact_phone),
+    );
+    ctx.insert(
+        "contact_email".into(),
+        minijinja::Value::from_serialize(contact_email),
+    );
+    ctx.insert(
+        "contact_address".into(),
+        minijinja::Value::from_serialize(contact_address),
+    );
+    ctx
+}
+
 pub async fn build_site(
     db: &sqlx::PgPool,
     site_id: Uuid,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let site_row = sqlx::query(
-        "SELECT id, name, description, logo_url, favicon_url, footer_text, social_links, contact_phone, contact_email, contact_address FROM sites WHERE id = $1"
+        "SELECT id, name, description, logo_url, favicon_url, footer_text, social_links, contact_phone, contact_email, contact_address, custom_domain FROM sites WHERE id = $1"
     )
     .bind(site_id)
     .fetch_one(db)
@@ -44,9 +110,21 @@ pub async fn build_site(
     let contact_phone: Option<String> = site_row.get("contact_phone");
     let contact_email: Option<String> = site_row.get("contact_email");
     let contact_address: Option<String> = site_row.get("contact_address");
+    let domain: Option<String> = site_row.get("custom_domain");
+
+    // Build site URL - use custom_domain as the primary domain
+    let site_url = if let Some(d) = domain {
+        if d.starts_with("http") {
+            d
+        } else {
+            format!("https://{}", d)
+        }
+    } else {
+        "https://example.com".to_string()
+    };
 
     let posts = sqlx::query_as::<_, (
-        String, String, serde_json::Value, Option<String>, Option<String>, chrono::DateTime<chrono::Utc>
+        String, String, serde_json::Value, Option<String>, Option<String>, Option<chrono::DateTime<chrono::Utc>>
     )>(
         "SELECT title, slug, content, excerpt, featured_image, published_at FROM posts WHERE site_id = $1 AND status = 'published' ORDER BY published_at DESC"
     )
@@ -81,20 +159,22 @@ pub async fn build_site(
 
     let base_html = std::fs::read_to_string(template_dir.join("base.html"))
         .map_err(|e| format!("Failed to read base.html: {}", e))?;
-    let post_html = std::fs::read_to_string(template_dir.join("post.html"))
-        .map_err(|e| format!("Failed to read post.html: {}", e))?;
     let page_html = std::fs::read_to_string(template_dir.join("page.html"))
         .map_err(|e| format!("Failed to read page.html: {}", e))?;
     let index_html = std::fs::read_to_string(template_dir.join("index.html"))
         .map_err(|e| format!("Failed to read index.html: {}", e))?;
 
     // Load templates
-    env.add_template("base", &base_html)?;
-    env.add_template("post", &post_html)?;
-    env.add_template("page", &page_html)?;
-    env.add_template("index", &index_html)?;
+    env.add_template("base.html", &base_html)?;
+    env.add_template("page.html", &page_html)?;
+    env.add_template("index.html", &index_html)?;
 
-    let site_url = std::env::var("SITE_URL").unwrap_or_else(|_| "https://example.com".to_string());
+    // Get non-homepage pages for sitemap (exclude 'blog' since it's handled specially)
+    let sitemap_pages: Vec<String> = pages
+        .iter()
+        .filter(|p| !p.3 && p.1 != "blog") // exclude homepage and blog page
+        .map(|p| p.1.clone())
+        .collect();
 
     let sitemap_xml = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -109,22 +189,23 @@ pub async fn build_site(
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
 </url>
-<url>
-    <loc>{}/about</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-</url>
-<url>
-    <loc>{}/contact</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-</url>
+{}
 {}
 </urlset>"#,
         site_url,
         site_url,
-        site_url,
-        site_url,
+        sitemap_pages
+            .iter()
+            .map(|slug| format!(
+                r#"<url>
+    <loc>{}/{}</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+</url>"#,
+                site_url, slug
+            ))
+            .collect::<Vec<_>>()
+            .join("\n"),
         posts
             .iter()
             .map(|p| format!(
@@ -138,7 +219,6 @@ pub async fn build_site(
             .collect::<Vec<_>>()
             .join("\n")
     );
-    env.add_template("sitemap", &sitemap_xml)?;
 
     let feed_items: Vec<String> = posts
         .iter()
@@ -156,7 +236,10 @@ pub async fn build_site(
                 p.1,
                 site_url,
                 p.1,
-                p.5.format("%a, %d %b %Y %H:%M:%S +0000"),
+                p.5.map(|dt| dt.format("%a, %d %b %Y %H:%M:%S +0000").to_string())
+                    .unwrap_or_else(|| chrono::Utc::now()
+                        .format("%a, %d %b %Y %H:%M:%S +0000")
+                        .to_string()),
                 p.3.as_deref().unwrap_or("")
             )
         })
@@ -182,7 +265,6 @@ pub async fn build_site(
         site_url,
         feed_items.join("\n")
     );
-    env.add_template("feed", &feed_xml)?;
 
     let posts_data: Vec<serde_json::Value> = posts
         .iter()
@@ -193,7 +275,7 @@ pub async fn build_site(
                 "content": render_blocks(&p.2),
                 "excerpt": p.3,
                 "featured_image": p.4,
-                "published_at": p.5.format("%Y-%m-%d").to_string(),
+                "published_at": p.5.map(|dt| dt.format("%Y-%m-%d").to_string()).unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string()),
             })
         })
         .collect();
@@ -204,131 +286,143 @@ pub async fn build_site(
     let output_dir = std::path::Path::new("output");
     std::fs::create_dir_all(output_dir)?;
 
-    let ctx = context! {
-        site_name => site_name,
-        site_description => site_description,
-        logo_url => logo_url,
-        favicon_url => favicon_url,
-        nav_links => nav_links,
-        footer_text => footer_text,
-        social_links => social_links,
-        contact_phone => contact_phone,
-        contact_email => contact_email,
-        contact_address => contact_address,
-        posts => posts_data.clone(),
-    };
+    // Build base context once
+    let mut ctx = make_context(
+        &site_name,
+        &site_description,
+        &logo_url,
+        &favicon_url,
+        &nav_links,
+        &footer_text,
+        &social_links,
+        &contact_phone,
+        &contact_email,
+        &contact_address,
+    );
+    ctx.insert(
+        "posts".into(),
+        minijinja::Value::from_serialize(&posts_data),
+    );
+    ctx.insert("url".into(), minijinja::Value::from("/"));
 
-    let index_template = env.get_template("index")?;
-    let index_html = index_template.render(ctx)?;
+    let index_template = env.get_template("index.html")?;
+    let index_html = index_template.render(&ctx)?;
     std::fs::write(output_dir.join("index.html"), index_html)?;
 
-    // Generate blog listing page using page template for consistent styling
-    let blog_ctx = context! {
-        site_name => site_name,
-        site_description => site_description,
-        logo_url => logo_url,
-        favicon_url => favicon_url,
-        nav_links => nav_links,
-        footer_text => footer_text,
-        social_links => social_links,
-        contact_phone => contact_phone,
-        contact_email => contact_email,
-        contact_address => contact_address,
-        posts => posts_data.clone(),
-        title => "Blog",
-    };
-    let page_template = env.get_template("page")?;
-    let blog_html = page_template.render(blog_ctx)?;
-    std::fs::write(output_dir.join("blog.html"), blog_html)?;
+    // Individual blog post pages are generated in the page loop below
 
     for post in &posts {
         // Use featured_image from DB, or extract first image from content
         let featured_img = post.4.clone().or_else(|| extract_first_image(&post.2));
 
-        let post_ctx = context! {
-            site_name => site_name,
-            site_description => site_description,
-            logo_url => logo_url,
-        favicon_url => favicon_url,
-            nav_links => nav_links,
-            footer_text => footer_text,
-            social_links => social_links,
-            contact_phone => contact_phone,
-            contact_email => contact_email,
-            contact_address => contact_address,
-            title => &post.0,
-            slug => &post.1,
-            content => render_blocks(&post.2),
-            excerpt => &post.3,
-            featured_image => featured_img,
-            published_at => post.5.format("%Y-%m-%d").to_string(),
-            url => format!("/blog/{}", post.1),
-        };
-        let post_template = env.get_template("page")?;
-        let post_html = post_template.render(post_ctx)?;
+        let mut post_ctx = make_context(
+            &site_name,
+            &site_description,
+            &logo_url,
+            &favicon_url,
+            &nav_links,
+            &footer_text,
+            &social_links,
+            &contact_phone,
+            &contact_email,
+            &contact_address,
+        );
+        post_ctx.insert("title".into(), minijinja::Value::from(post.0.clone()));
+        post_ctx.insert("slug".into(), minijinja::Value::from(post.1.clone()));
+        post_ctx.insert(
+            "content".into(),
+            minijinja::Value::from(render_blocks(&post.2)),
+        );
+        post_ctx.insert("excerpt".into(), minijinja::Value::from_serialize(&post.3));
+        post_ctx.insert(
+            "featured_image".into(),
+            minijinja::Value::from_serialize(&featured_img),
+        );
+        post_ctx.insert(
+            "published_at".into(),
+            minijinja::Value::from(
+                post.5
+                    .map(|dt| dt.format("%Y-%m-%d").to_string())
+                    .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string()),
+            ),
+        );
+        post_ctx.insert(
+            "url".into(),
+            minijinja::Value::from(format!("/blog/{}", post.1)),
+        );
+
+        let post_template = env.get_template("page.html")?;
+        let post_html = post_template.render(&post_ctx)?;
         let blog_dir = output_dir.join("blog");
         std::fs::create_dir_all(&blog_dir)?;
         std::fs::write(blog_dir.join(format!("{}.html", post.1)), post_html)?;
     }
 
     if let Some(home) = homepage {
-        let page_ctx = context! {
-            site_name => site_name,
-            site_description => site_description,
-            logo_url => logo_url,
-        favicon_url => favicon_url,
-            nav_links => nav_links,
-            footer_text => footer_text,
-            social_links => social_links,
-            contact_phone => contact_phone,
-            contact_email => contact_email,
-            contact_address => contact_address,
-            title => &home.0,
-            slug => &home.1,
-            content => render_blocks(&home.2),
-        };
-        let page_template = env.get_template("page")?;
-        let page_html = page_template.render(page_ctx)?;
+        let mut page_ctx = make_context(
+            &site_name,
+            &site_description,
+            &logo_url,
+            &favicon_url,
+            &nav_links,
+            &footer_text,
+            &social_links,
+            &contact_phone,
+            &contact_email,
+            &contact_address,
+        );
+        page_ctx.insert("title".into(), minijinja::Value::from(home.0.clone()));
+        page_ctx.insert("slug".into(), minijinja::Value::from(home.1.clone()));
+        page_ctx.insert(
+            "content".into(),
+            minijinja::Value::from(render_blocks(&home.2)),
+        );
+
+        let page_template = env.get_template("page.html")?;
+        let page_html = page_template.render(&page_ctx)?;
         std::fs::write(output_dir.join("index.html"), page_html)?;
     }
 
     for page in other_pages {
-        let page_ctx = context! {
-            site_name => site_name,
-            site_description => site_description,
-            logo_url => logo_url,
-        favicon_url => favicon_url,
-            nav_links => nav_links,
-            footer_text => footer_text,
-            social_links => social_links,
-            contact_phone => contact_phone,
-            contact_email => contact_email,
-            contact_address => contact_address,
-            title => &page.0,
-            slug => &page.1,
-            content => render_blocks(&page.2),
-            url => format!("/{}", page.1),
-        };
-        let page_template = env.get_template("page")?;
-        let page_html = page_template.render(page_ctx)?;
+        let is_blog = page.1 == "blog";
+
+        let mut page_ctx = make_context(
+            &site_name,
+            &site_description,
+            &logo_url,
+            &favicon_url,
+            &nav_links,
+            &footer_text,
+            &social_links,
+            &contact_phone,
+            &contact_email,
+            &contact_address,
+        );
+        page_ctx.insert("title".into(), minijinja::Value::from(page.0.clone()));
+        page_ctx.insert("slug".into(), minijinja::Value::from(page.1.clone()));
+        page_ctx.insert(
+            "content".into(),
+            minijinja::Value::from(render_blocks(&page.2)),
+        );
+        page_ctx.insert("url".into(), minijinja::Value::from(format!("/{}", page.1)));
+
+        if is_blog {
+            page_ctx.insert(
+                "posts".into(),
+                minijinja::Value::from_serialize(&posts_data),
+            );
+        }
+
+        let page_template = env.get_template("page.html")?;
+        let page_html = page_template.render(&page_ctx)?;
         std::fs::write(output_dir.join(format!("{}.html", page.1)), page_html)?;
     }
 
-    let sitemap_ctx = context! {
-        posts => posts_data.iter().map(|p| p.get("slug").and_then(|s| s.as_str()).unwrap_or("")).collect::<Vec<_>>(),
-    };
-    let sitemap_template = env.get_template("sitemap")?;
-    let sitemap_xml = sitemap_template.render(sitemap_ctx)?;
-    std::fs::write(output_dir.join("sitemap.xml"), sitemap_xml)?;
+    // Write sitemap - already generated inline above
+    std::fs::write(output_dir.join("sitemap.xml"), &sitemap_xml)?;
 
-    let feed_ctx = context! {
-        site_name => site_name,
-        site_description => site_description,
-        posts => posts_data,
-    };
-    let feed_template = env.get_template("feed")?;
-    let feed_xml = feed_template.render(feed_ctx)?;
-    std::fs::write(output_dir.join("feed.xml"), feed_xml)?;
+    // Write feed - already generated inline above
+    std::fs::write(output_dir.join("feed.xml"), &feed_xml)?;
 
     tracing::info!("Built static site for site_id: {}", site_id);
     Ok(())
@@ -344,31 +438,31 @@ fn render_blocks(content: &serde_json::Value) -> String {
                 match block_type {
                     "heading" => {
                         let level = block.get("level").and_then(|l| l.as_i64()).unwrap_or(2);
-                        let text = block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or("");
+                        let text = escape_html(block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or(""));
                         format!("<h{}>{}</h{}>", level, text, level)
                     }
                     "paragraph" => {
-                        let text = block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or("");
+                        let text = escape_html(block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or(""));
                         format!("<p>{}</p>", text)
                     }
                     "image" => {
-                        let url = block_content.and_then(|c| c.get("url")).and_then(|u| u.as_str()).unwrap_or("");
-                        let alt = block_content.and_then(|c| c.get("alt")).and_then(|a| a.as_str()).unwrap_or("");
+                        let url = escape_html(block_content.and_then(|c| c.get("url")).and_then(|u| u.as_str()).unwrap_or(""));
+                        let alt = escape_html(block_content.and_then(|c| c.get("alt")).and_then(|a| a.as_str()).unwrap_or(""));
                         format!("<figure><img src=\"{}\" alt=\"{}\"><figcaption>{}</figcaption></figure>", url, alt, alt)
                     }
                     "code" => {
-                        let code = block_content.and_then(|c| c.get("code")).and_then(|c| c.as_str()).unwrap_or("");
+                        let code = escape_html(block_content.and_then(|c| c.get("code")).and_then(|c| c.as_str()).unwrap_or(""));
                         let lang = block_content.and_then(|c| c.get("language")).and_then(|l| l.as_str()).unwrap_or("");
                         format!("<pre><code class=\"language-{}\">{}</code></pre>", lang, code)
                     }
                     "quote" => {
-                        let text = block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or("");
-                        let citation = block_content.and_then(|c| c.get("citation")).and_then(|c| c.as_str()).unwrap_or("");
+                        let text = escape_html(block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or(""));
+                        let citation = escape_html(block_content.and_then(|c| c.get("citation")).and_then(|c| c.as_str()).unwrap_or(""));
                         format!("<blockquote>{}<cite>{}</cite></blockquote>", text, citation)
                     }
                     "hero" => {
-                        let title = block_content.and_then(|c| c.get("title")).and_then(|t| t.as_str()).unwrap_or("");
-                        let subtitle = block_content.and_then(|c| c.get("subtitle")).and_then(|t| t.as_str()).unwrap_or("");
+                        let title = escape_html(block_content.and_then(|c| c.get("title")).and_then(|t| t.as_str()).unwrap_or(""));
+                        let subtitle = escape_html(block_content.and_then(|c| c.get("subtitle")).and_then(|t| t.as_str()).unwrap_or(""));
                         let bg = block_content.and_then(|c| c.get("backgroundImage")).and_then(|t| t.as_str()).unwrap_or("");
                         let cta_text = block_content.and_then(|c| c.get("ctaText")).and_then(|t| t.as_str()).unwrap_or("");
                         let cta_link = block_content.and_then(|c| c.get("ctaLink")).and_then(|t| t.as_str()).unwrap_or("#");
@@ -385,7 +479,7 @@ fn render_blocks(content: &serde_json::Value) -> String {
                     }
                     "video" => {
                         let url = block_content.and_then(|c| c.get("url")).and_then(|t| t.as_str()).unwrap_or("");
-                        let caption = block_content.and_then(|c| c.get("caption")).and_then(|t| t.as_str()).unwrap_or("");
+                        let caption = escape_html(block_content.and_then(|c| c.get("caption")).and_then(|t| t.as_str()).unwrap_or(""));
                         let embed_html = if url.contains("youtube.com") || url.contains("youtu.be") {
                             let video_id = if url.contains("v=") {
                                 url.split("v=").nth(1).unwrap_or("").split('&').next().unwrap_or("")
@@ -406,8 +500,8 @@ fn render_blocks(content: &serde_json::Value) -> String {
                         } else { String::new() }
                     }
                     "columns" => {
-                        let left = block_content.and_then(|c| c.get("left")).and_then(|t| t.as_str()).unwrap_or("");
-                        let right = block_content.and_then(|c| c.get("right")).and_then(|t| t.as_str()).unwrap_or("");
+                        let left = escape_html(block_content.and_then(|c| c.get("left")).and_then(|t| t.as_str()).unwrap_or(""));
+                        let right = escape_html(block_content.and_then(|c| c.get("right")).and_then(|t| t.as_str()).unwrap_or(""));
                         let left_img = block_content.and_then(|c| c.get("leftImage")).and_then(|t| t.as_str()).unwrap_or("");
                         let right_img = block_content.and_then(|c| c.get("rightImage")).and_then(|t| t.as_str()).unwrap_or("");
                         format!(r#"<div class="columns-block" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin: 2rem 0;">
@@ -425,7 +519,7 @@ fn render_blocks(content: &serde_json::Value) -> String {
                         )
                     }
                     _ => {
-                        let text = block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or("");
+                        let text = escape_html(block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or(""));
                         format!("<p>{}</p>", text)
                     }
                 }

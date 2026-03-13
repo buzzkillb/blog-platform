@@ -7,6 +7,7 @@ use axum::{
 use uuid::Uuid;
 
 use crate::api::auth::{require_auth, require_site_member};
+use crate::models::MediaRow;
 use crate::{ApiError, AppState, Media};
 
 pub async fn list(
@@ -17,9 +18,7 @@ pub async fn list(
     let current_user = require_auth(State(state.clone()), headers).await?;
     require_site_member(&state, site_id, current_user.user_id).await?;
 
-    let media = sqlx::query_as::<_, (
-        Uuid, Uuid, String, Option<String>, Option<i32>, String, Option<String>, chrono::DateTime<chrono::Utc>
-    )>(
+    let media = sqlx::query_as::<_, MediaRow>(
         "SELECT id, site_id, filename, mime_type, size, url, alt_text, created_at FROM media WHERE site_id = $1 ORDER BY created_at DESC"
     )
     .bind(site_id)
@@ -52,9 +51,7 @@ pub async fn get(
     let current_user = require_auth(State(state.clone()), headers).await?;
     require_site_member(&state, site_id, current_user.user_id).await?;
 
-    let media = sqlx::query_as::<_, (
-        Uuid, Uuid, String, Option<String>, Option<i32>, String, Option<String>, chrono::DateTime<chrono::Utc>
-    )>(
+    let media = sqlx::query_as::<_, MediaRow>(
         "SELECT id, site_id, filename, mime_type, size, url, alt_text, created_at FROM media WHERE site_id = $1 AND id = $2"
     )
     .bind(site_id)
@@ -119,19 +116,7 @@ pub async fn upload(
     std::fs::write(&file_path, &bytes)
         .map_err(|e| ApiError::new(format!("Failed to save file: {}", e)))?;
 
-    let result = sqlx::query_as::<
-        _,
-        (
-            Uuid,
-            Uuid,
-            String,
-            Option<String>,
-            Option<i32>,
-            String,
-            Option<String>,
-            chrono::DateTime<chrono::Utc>,
-        ),
-    >(
+    let result = sqlx::query_as::<_, MediaRow>(
         "INSERT INTO media (site_id, filename, mime_type, size, url) VALUES ($1, $2, $3, $4, $5) 
          RETURNING id, site_id, filename, mime_type, size, url, alt_text, created_at",
     )

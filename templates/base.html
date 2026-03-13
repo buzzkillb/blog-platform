@@ -9,7 +9,7 @@
     {% if favicon_url %}<link rel="icon" type="image/x-icon" href="{{ favicon_url }}">{% endif %}
     {% if logo_url %}<link rel="icon" type="image/png" href="{{ logo_url }}">{% endif %}
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="canonical" href="{{ url | default(value='/') }}">
+    <link rel="canonical" href="{{ url | default('/') }}">
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">

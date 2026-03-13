@@ -87,3 +87,59 @@ pub struct ContactSubmission {
     pub created_at: DateTime<Utc>,
     pub read: bool,
 }
+
+// ============================================================================
+// SQL Query Row Types
+// These type aliases are used with sqlx::query_as to map SQL results to tuples
+// ============================================================================
+
+/// Row type for Post queries: SELECT id, site_id, author_id, title, slug, content,
+/// excerpt, featured_image, status, published_at, created_at, updated_at, seo
+pub type PostRow = (
+    Uuid,
+    Uuid,
+    Option<Uuid>,
+    String,
+    String,
+    serde_json::Value,
+    Option<String>,
+    Option<String>,
+    String,
+    Option<DateTime<Utc>>,
+    DateTime<Utc>,
+    DateTime<Utc>,
+    serde_json::Value,
+);
+
+/// Row type for Page queries: SELECT id, site_id, title, slug, content,
+/// is_homepage, show_in_nav, sort_order, created_at, updated_at, seo
+pub type PageRow = (
+    Uuid,
+    Uuid,
+    String,
+    String,
+    serde_json::Value,
+    bool,
+    bool,
+    i32,
+    DateTime<Utc>,
+    DateTime<Utc>,
+    serde_json::Value,
+);
+
+/// Row type for Media queries: SELECT id, site_id, filename, mime_type,
+/// size, url, alt_text, created_at
+pub type MediaRow = (
+    Uuid,
+    Uuid,
+    String,
+    Option<String>,
+    Option<i32>,
+    String,
+    Option<String>,
+    DateTime<Utc>,
+);
+
+/// Row type for ContactSubmission queries: SELECT id, site_id, name, email,
+/// message, created_at, read
+pub type ContactSubmissionRow = (Uuid, Uuid, String, String, String, DateTime<Utc>, bool);
