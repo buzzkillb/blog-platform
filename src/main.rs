@@ -81,7 +81,7 @@ async fn main() {
         }
     }
 
-    let static_files = ServeDir::new(".");
+    let static_files = ServeDir::new("output");
 
     let media_files = ServeDir::new("media");
 

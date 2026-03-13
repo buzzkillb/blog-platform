@@ -303,7 +303,10 @@ pub async fn build_site(
         "posts".into(),
         minijinja::Value::from_serialize(&posts_data),
     );
-    ctx.insert("url".into(), minijinja::Value::from("/"));
+    ctx.insert(
+        "url".into(),
+        minijinja::Value::from_safe_string("/".to_string()),
+    );
 
     let index_template = env.get_template("index.html")?;
     let index_html = index_template.render(&ctx)?;
@@ -348,8 +351,9 @@ pub async fn build_site(
         );
         post_ctx.insert(
             "url".into(),
-            minijinja::Value::from(format!("/blog/{}", post.1)),
+            minijinja::Value::from_safe_string(format!("/blog/{}", post.1)),
         );
+        post_ctx.insert("is_blog_post".into(), minijinja::Value::from(true));
 
         let post_template = env.get_template("page.html")?;
         let post_html = post_template.render(&post_ctx)?;
@@ -376,6 +380,10 @@ pub async fn build_site(
         page_ctx.insert(
             "content".into(),
             minijinja::Value::from(render_blocks(&home.2)),
+        );
+        page_ctx.insert(
+            "url".into(),
+            minijinja::Value::from_safe_string("/".to_string()),
         );
 
         let page_template = env.get_template("page.html")?;
@@ -404,7 +412,10 @@ pub async fn build_site(
             "content".into(),
             minijinja::Value::from(render_blocks(&page.2)),
         );
-        page_ctx.insert("url".into(), minijinja::Value::from(format!("/{}", page.1)));
+        page_ctx.insert(
+            "url".into(),
+            minijinja::Value::from_safe_string(format!("/{}", page.1)),
+        );
 
         if is_blog {
             page_ctx.insert(
@@ -478,7 +489,7 @@ fn render_blocks(content: &serde_json::Value) -> String {
                         </div>"#, bg_style, title, subtitle, if !cta_text.is_empty() { format!("<a href=\"{}\" class=\"button\">{}</a>", cta_link, cta_text) } else { String::new() })
                     }
                     "video" => {
-                        let url = block_content.and_then(|c| c.get("url")).and_then(|t| t.as_str()).unwrap_or("");
+                        let url = escape_html(block_content.and_then(|c| c.get("url")).and_then(|t| t.as_str()).unwrap_or(""));
                         let caption = escape_html(block_content.and_then(|c| c.get("caption")).and_then(|t| t.as_str()).unwrap_or(""));
                         let embed_html = if url.contains("youtube.com") || url.contains("youtu.be") {
                             let video_id = if url.contains("v=") {

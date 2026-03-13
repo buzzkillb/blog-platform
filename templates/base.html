@@ -8,8 +8,7 @@
     <meta name="generator" content="Blog Platform">
     {% if favicon_url %}<link rel="icon" type="image/x-icon" href="{{ favicon_url }}">{% endif %}
     {% if logo_url %}<link rel="icon" type="image/png" href="{{ logo_url }}">{% endif %}
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="canonical" href="{{ url | default('/') }}">
+    <link rel="canonical" href="{{ url | safe }}">
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
@@ -135,6 +134,32 @@
             color: #8b949e;
             font-size: 0.875rem;
             margin-top: 0.5rem;
+        }
+        .breadcrumbs {
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-bottom: 1rem;
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .breadcrumbs a {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+        .breadcrumbs a:hover {
+            text-decoration: underline;
+        }
+        .breadcrumbs .separator {
+            margin: 0 0.4rem;
+            color: #484f58;
+        }
+        .breadcrumbs .current {
+            color: #c9d1d9;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
     </style>
 </head>
