@@ -3,7 +3,8 @@ use sqlx::Row;
 use uuid::Uuid;
 
 /// Escape HTML special characters to prevent XSS attacks
-fn escape_html(s: &str) -> String {
+fn escape_html<S: AsRef<str>>(s: S) -> String {
+    let s = s.as_ref();
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
@@ -33,6 +34,7 @@ fn extract_first_image(content: &serde_json::Value) -> Option<String> {
 
 type Context = std::collections::HashMap<String, minijinja::Value>;
 
+#[allow(clippy::too_many_arguments)]
 fn make_context(
     site_name: &str,
     site_description: &Option<String>,
@@ -382,31 +384,31 @@ fn render_blocks(content: &serde_json::Value) -> String {
                 match block_type {
                     "heading" => {
                         let level = block.get("level").and_then(|l| l.as_i64()).unwrap_or(2);
-                        let text = escape_html(&block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or(""));
+                        let text = escape_html(block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or(""));
                         format!("<h{}>{}</h{}>", level, text, level)
                     }
                     "paragraph" => {
-                        let text = escape_html(&block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or(""));
+                        let text = escape_html(block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or(""));
                         format!("<p>{}</p>", text)
                     }
                     "image" => {
-                        let url = escape_html(&block_content.and_then(|c| c.get("url")).and_then(|u| u.as_str()).unwrap_or(""));
-                        let alt = escape_html(&block_content.and_then(|c| c.get("alt")).and_then(|a| a.as_str()).unwrap_or(""));
+                        let url = escape_html(block_content.and_then(|c| c.get("url")).and_then(|u| u.as_str()).unwrap_or(""));
+                        let alt = escape_html(block_content.and_then(|c| c.get("alt")).and_then(|a| a.as_str()).unwrap_or(""));
                         format!("<figure><img src=\"{}\" alt=\"{}\"><figcaption>{}</figcaption></figure>", url, alt, alt)
                     }
                     "code" => {
-                        let code = escape_html(&block_content.and_then(|c| c.get("code")).and_then(|c| c.as_str()).unwrap_or(""));
+                        let code = escape_html(block_content.and_then(|c| c.get("code")).and_then(|c| c.as_str()).unwrap_or(""));
                         let lang = block_content.and_then(|c| c.get("language")).and_then(|l| l.as_str()).unwrap_or("");
                         format!("<pre><code class=\"language-{}\">{}</code></pre>", lang, code)
                     }
                     "quote" => {
-                        let text = escape_html(&block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or(""));
-                        let citation = escape_html(&block_content.and_then(|c| c.get("citation")).and_then(|c| c.as_str()).unwrap_or(""));
+                        let text = escape_html(block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or(""));
+                        let citation = escape_html(block_content.and_then(|c| c.get("citation")).and_then(|c| c.as_str()).unwrap_or(""));
                         format!("<blockquote>{}<cite>{}</cite></blockquote>", text, citation)
                     }
                     "hero" => {
-                        let title = escape_html(&block_content.and_then(|c| c.get("title")).and_then(|t| t.as_str()).unwrap_or(""));
-                        let subtitle = escape_html(&block_content.and_then(|c| c.get("subtitle")).and_then(|t| t.as_str()).unwrap_or(""));
+                        let title = escape_html(block_content.and_then(|c| c.get("title")).and_then(|t| t.as_str()).unwrap_or(""));
+                        let subtitle = escape_html(block_content.and_then(|c| c.get("subtitle")).and_then(|t| t.as_str()).unwrap_or(""));
                         let bg = block_content.and_then(|c| c.get("backgroundImage")).and_then(|t| t.as_str()).unwrap_or("");
                         let cta_text = block_content.and_then(|c| c.get("ctaText")).and_then(|t| t.as_str()).unwrap_or("");
                         let cta_link = block_content.and_then(|c| c.get("ctaLink")).and_then(|t| t.as_str()).unwrap_or("#");
@@ -423,7 +425,7 @@ fn render_blocks(content: &serde_json::Value) -> String {
                     }
                     "video" => {
                         let url = block_content.and_then(|c| c.get("url")).and_then(|t| t.as_str()).unwrap_or("");
-                        let caption = escape_html(&block_content.and_then(|c| c.get("caption")).and_then(|t| t.as_str()).unwrap_or(""));
+                        let caption = escape_html(block_content.and_then(|c| c.get("caption")).and_then(|t| t.as_str()).unwrap_or(""));
                         let embed_html = if url.contains("youtube.com") || url.contains("youtu.be") {
                             let video_id = if url.contains("v=") {
                                 url.split("v=").nth(1).unwrap_or("").split('&').next().unwrap_or("")
@@ -444,8 +446,8 @@ fn render_blocks(content: &serde_json::Value) -> String {
                         } else { String::new() }
                     }
                     "columns" => {
-                        let left = escape_html(&block_content.and_then(|c| c.get("left")).and_then(|t| t.as_str()).unwrap_or(""));
-                        let right = escape_html(&block_content.and_then(|c| c.get("right")).and_then(|t| t.as_str()).unwrap_or(""));
+                        let left = escape_html(block_content.and_then(|c| c.get("left")).and_then(|t| t.as_str()).unwrap_or(""));
+                        let right = escape_html(block_content.and_then(|c| c.get("right")).and_then(|t| t.as_str()).unwrap_or(""));
                         let left_img = block_content.and_then(|c| c.get("leftImage")).and_then(|t| t.as_str()).unwrap_or("");
                         let right_img = block_content.and_then(|c| c.get("rightImage")).and_then(|t| t.as_str()).unwrap_or("");
                         format!(r#"<div class="columns-block" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin: 2rem 0;">
@@ -463,7 +465,7 @@ fn render_blocks(content: &serde_json::Value) -> String {
                         )
                     }
                     _ => {
-                        let text = escape_html(&block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or(""));
+                        let text = escape_html(block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or(""));
                         format!("<p>{}</p>", text)
                     }
                 }
