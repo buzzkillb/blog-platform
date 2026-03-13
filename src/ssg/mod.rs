@@ -141,10 +141,10 @@ pub async fn build_site(
     env.add_template("page.html", &page_html)?;
     env.add_template("index.html", &index_html)?;
 
-    // Get non-homepage pages for sitemap
+    // Get non-homepage pages for sitemap (exclude 'blog' since it's handled specially)
     let sitemap_pages: Vec<String> = pages
         .iter()
-        .filter(|p| !p.3) // exclude homepage
+        .filter(|p| !p.3 && p.1 != "blog") // exclude homepage and blog page
         .map(|p| p.1.clone())
         .collect();
 
