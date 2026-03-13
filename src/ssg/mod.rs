@@ -489,7 +489,7 @@ fn render_blocks(content: &serde_json::Value) -> String {
                         </div>"#, bg_style, title, subtitle, if !cta_text.is_empty() { format!("<a href=\"{}\" class=\"button\">{}</a>", cta_link, cta_text) } else { String::new() })
                     }
                     "video" => {
-                        let url = block_content.and_then(|c| c.get("url")).and_then(|t| t.as_str()).unwrap_or("");
+                        let url = escape_html(block_content.and_then(|c| c.get("url")).and_then(|t| t.as_str()).unwrap_or(""));
                         let caption = escape_html(block_content.and_then(|c| c.get("caption")).and_then(|t| t.as_str()).unwrap_or(""));
                         let embed_html = if url.contains("youtube.com") || url.contains("youtu.be") {
                             let video_id = if url.contains("v=") {
