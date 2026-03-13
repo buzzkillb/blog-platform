@@ -39,18 +39,18 @@
     {
         "@context": "https://schema.org",
         "@type": "Article",
-        "headline": "{{ title }}",
+        "headline": "{{ title | json_escape }}",
         "description": "{{ description | default(value=meta_description) | json_escape }}",
-        "url": "{{ url }}",
-        {% if featured_image %}"image": "{{ featured_image | safe }}",{% endif %}
+        "url": "{{ url | json_escape }}",
+        {% if featured_image %}"image": "{{ featured_image | json_escape }}",{% endif %}
         "datePublished": "{{ published_at }}",
         "author": {
             "@type": "Organization",
-            "name": "{{ site_name }}"
+            "name": "{{ site_name | json_escape }}"
         },
         "publisher": {
             "@type": "Organization",
-            "name": "{{ site_name }}"
+            "name": "{{ site_name | json_escape }}"
         }
     }
     </script>
@@ -60,13 +60,13 @@
     {
         "@context": "https://schema.org",
         "@type": "WebSite",
-        "name": "{{ site_name }}",
-        "description": "{{ site_description | default(value='') }}",
-        "url": "{{ url | default(value='/') }}",
-        {% if logo_url %}"logo": "{{ logo_url }}",{% endif %}
+        "name": "{{ site_name | json_escape }}",
+        "description": "{{ site_description | default(value='') | json_escape }}",
+        "url": "{{ url | default(value='/') | json_escape }}",
+        {% if logo_url %}"logo": "{{ logo_url | json_escape }}",{% endif %}
         "publisher": {
             "@type": "Organization",
-            "name": "{{ site_name }}"
+            "name": "{{ site_name | json_escape }}"
         }
     }
     </script>

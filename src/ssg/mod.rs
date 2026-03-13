@@ -152,7 +152,7 @@ pub async fn build_site(
         .collect();
 
     let mut env = Environment::new();
-    
+
     // Add custom filter for JSON-LD escaping (prevents XSS in script tags)
     env.add_filter("json_escape", |s: String| {
         s.replace('\\', "\\\\")
@@ -313,10 +313,7 @@ pub async fn build_site(
         "posts".into(),
         minijinja::Value::from_serialize(&posts_data),
     );
-    ctx.insert(
-        "url".into(),
-        minijinja::Value::from("/".to_string()),
-    );
+    ctx.insert("url".into(), minijinja::Value::from("/".to_string()));
 
     let index_template = env.get_template("index.html")?;
     let index_html = index_template.render(&ctx)?;
@@ -403,10 +400,7 @@ pub async fn build_site(
             "content".into(),
             minijinja::Value::from(render_blocks(&home.2)),
         );
-        page_ctx.insert(
-            "url".into(),
-            minijinja::Value::from("/".to_string()),
-        );
+        page_ctx.insert("url".into(), minijinja::Value::from("/".to_string()));
 
         let page_template = env.get_template("page.html")?;
         let page_html = page_template.render(&page_ctx)?;
@@ -434,10 +428,7 @@ pub async fn build_site(
             "content".into(),
             minijinja::Value::from(render_blocks(&page.2)),
         );
-        page_ctx.insert(
-            "url".into(),
-            minijinja::Value::from(format!("/{}", page.1)),
-        );
+        page_ctx.insert("url".into(), minijinja::Value::from(format!("/{}", page.1)));
 
         if is_blog {
             page_ctx.insert(
