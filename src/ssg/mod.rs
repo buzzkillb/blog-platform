@@ -12,7 +12,6 @@ fn escape_html<S: AsRef<str>>(s: S) -> String {
         .replace('\'', "&#39;")
 }
 
-
 fn extract_first_image(content: &serde_json::Value) -> Option<String> {
     if let Some(blocks) = content.as_array() {
         for block in blocks {
@@ -49,15 +48,42 @@ fn make_context(
 ) -> Context {
     let mut ctx = Context::new();
     ctx.insert("site_name".into(), minijinja::Value::from(site_name));
-    ctx.insert("site_description".into(), minijinja::Value::from_serialize(site_description));
-    ctx.insert("logo_url".into(), minijinja::Value::from_serialize(logo_url));
-    ctx.insert("favicon_url".into(), minijinja::Value::from_serialize(favicon_url));
-    ctx.insert("nav_links".into(), minijinja::Value::from_serialize(nav_links));
-    ctx.insert("footer_text".into(), minijinja::Value::from_serialize(footer_text));
-    ctx.insert("social_links".into(), minijinja::Value::from_serialize(social_links));
-    ctx.insert("contact_phone".into(), minijinja::Value::from_serialize(contact_phone));
-    ctx.insert("contact_email".into(), minijinja::Value::from_serialize(contact_email));
-    ctx.insert("contact_address".into(), minijinja::Value::from_serialize(contact_address));
+    ctx.insert(
+        "site_description".into(),
+        minijinja::Value::from_serialize(site_description),
+    );
+    ctx.insert(
+        "logo_url".into(),
+        minijinja::Value::from_serialize(logo_url),
+    );
+    ctx.insert(
+        "favicon_url".into(),
+        minijinja::Value::from_serialize(favicon_url),
+    );
+    ctx.insert(
+        "nav_links".into(),
+        minijinja::Value::from_serialize(nav_links),
+    );
+    ctx.insert(
+        "footer_text".into(),
+        minijinja::Value::from_serialize(footer_text),
+    );
+    ctx.insert(
+        "social_links".into(),
+        minijinja::Value::from_serialize(social_links),
+    );
+    ctx.insert(
+        "contact_phone".into(),
+        minijinja::Value::from_serialize(contact_phone),
+    );
+    ctx.insert(
+        "contact_email".into(),
+        minijinja::Value::from_serialize(contact_email),
+    );
+    ctx.insert(
+        "contact_address".into(),
+        minijinja::Value::from_serialize(contact_address),
+    );
     ctx
 }
 
@@ -273,7 +299,10 @@ pub async fn build_site(
         &contact_email,
         &contact_address,
     );
-    ctx.insert("posts".into(), minijinja::Value::from_serialize(&posts_data));
+    ctx.insert(
+        "posts".into(),
+        minijinja::Value::from_serialize(&posts_data),
+    );
     ctx.insert("url".into(), minijinja::Value::from("/"));
 
     let index_template = env.get_template("index.html")?;
@@ -300,12 +329,28 @@ pub async fn build_site(
         );
         post_ctx.insert("title".into(), minijinja::Value::from(post.0.clone()));
         post_ctx.insert("slug".into(), minijinja::Value::from(post.1.clone()));
-        post_ctx.insert("content".into(), minijinja::Value::from(render_blocks(&post.2)));
+        post_ctx.insert(
+            "content".into(),
+            minijinja::Value::from(render_blocks(&post.2)),
+        );
         post_ctx.insert("excerpt".into(), minijinja::Value::from_serialize(&post.3));
-        post_ctx.insert("featured_image".into(), minijinja::Value::from_serialize(&featured_img));
-        post_ctx.insert("published_at".into(), minijinja::Value::from(post.5.map(|dt| dt.format("%Y-%m-%d").to_string()).unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string())));
-        post_ctx.insert("url".into(), minijinja::Value::from(format!("/blog/{}", post.1)));
-        
+        post_ctx.insert(
+            "featured_image".into(),
+            minijinja::Value::from_serialize(&featured_img),
+        );
+        post_ctx.insert(
+            "published_at".into(),
+            minijinja::Value::from(
+                post.5
+                    .map(|dt| dt.format("%Y-%m-%d").to_string())
+                    .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string()),
+            ),
+        );
+        post_ctx.insert(
+            "url".into(),
+            minijinja::Value::from(format!("/blog/{}", post.1)),
+        );
+
         let post_template = env.get_template("page.html")?;
         let post_html = post_template.render(&post_ctx)?;
         let blog_dir = output_dir.join("blog");
@@ -328,8 +373,11 @@ pub async fn build_site(
         );
         page_ctx.insert("title".into(), minijinja::Value::from(home.0.clone()));
         page_ctx.insert("slug".into(), minijinja::Value::from(home.1.clone()));
-        page_ctx.insert("content".into(), minijinja::Value::from(render_blocks(&home.2)));
-        
+        page_ctx.insert(
+            "content".into(),
+            minijinja::Value::from(render_blocks(&home.2)),
+        );
+
         let page_template = env.get_template("page.html")?;
         let page_html = page_template.render(&page_ctx)?;
         std::fs::write(output_dir.join("index.html"), page_html)?;
@@ -337,7 +385,7 @@ pub async fn build_site(
 
     for page in other_pages {
         let is_blog = page.1 == "blog";
-        
+
         let mut page_ctx = make_context(
             &site_name,
             &site_description,
@@ -352,13 +400,19 @@ pub async fn build_site(
         );
         page_ctx.insert("title".into(), minijinja::Value::from(page.0.clone()));
         page_ctx.insert("slug".into(), minijinja::Value::from(page.1.clone()));
-        page_ctx.insert("content".into(), minijinja::Value::from(render_blocks(&page.2)));
+        page_ctx.insert(
+            "content".into(),
+            minijinja::Value::from(render_blocks(&page.2)),
+        );
         page_ctx.insert("url".into(), minijinja::Value::from(format!("/{}", page.1)));
-        
+
         if is_blog {
-            page_ctx.insert("posts".into(), minijinja::Value::from_serialize(&posts_data));
+            page_ctx.insert(
+                "posts".into(),
+                minijinja::Value::from_serialize(&posts_data),
+            );
         }
-        
+
         let page_template = env.get_template("page.html")?;
         let page_html = page_template.render(&page_ctx)?;
         std::fs::write(output_dir.join(format!("{}.html", page.1)), page_html)?;
