@@ -355,6 +355,18 @@ pub async fn build_site(
         );
         post_ctx.insert("is_blog_post".into(), minijinja::Value::from(true));
 
+        let meta_desc = post
+            .3
+            .as_ref()
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| extract_plain_text(&post.2));
+        post_ctx.insert(
+            "meta_description".into(),
+            minijinja::Value::from(meta_desc.clone()),
+        );
+        post_ctx.insert("description".into(), minijinja::Value::from(meta_desc));
+
         let post_template = env.get_template("page.html")?;
         let post_html = post_template.render(&post_ctx)?;
         let blog_dir = output_dir.join("blog");
@@ -537,6 +549,80 @@ fn render_blocks(content: &serde_json::Value) -> String {
             })
             .collect::<Vec<_>>()
             .join("\n")
+    } else {
+        String::new()
+    }
+}
+
+fn extract_plain_text(content: &serde_json::Value) -> String {
+    if let Some(blocks) = content.as_array() {
+        let mut text = String::new();
+
+        for block in blocks.iter() {
+            let block_type = block
+                .get("block_type")
+                .and_then(|b| b.as_str())
+                .unwrap_or("text");
+            let block_content = block.get("content");
+
+            let block_text: String = match block_type {
+                "heading" => block_content
+                    .and_then(|c| c.get("text"))
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                "paragraph" => block_content
+                    .and_then(|c| c.get("text"))
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                "quote" => block_content
+                    .and_then(|c| c.get("text"))
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                "hero" => {
+                    let title = block_content
+                        .and_then(|c| c.get("title"))
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("");
+                    let subtitle = block_content
+                        .and_then(|c| c.get("subtitle"))
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("");
+                    format!("{} {}", title, subtitle)
+                }
+                "columns" => {
+                    let left = block_content
+                        .and_then(|c| c.get("left"))
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("");
+                    let right = block_content
+                        .and_then(|c| c.get("right"))
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("");
+                    format!("{} {}", left, right)
+                }
+                _ => block_content
+                    .and_then(|c| c.get("text"))
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+            };
+
+            if !block_text.trim().is_empty() {
+                if !text.is_empty() {
+                    text.push(' ');
+                }
+                text.push_str(block_text.trim());
+            }
+        }
+
+        if text.len() > 160 {
+            format!("{}...", &text[..157])
+        } else {
+            text
+        }
     } else {
         String::new()
     }
