@@ -1,4 +1,4 @@
-use minijinja::{context, Environment};
+use minijinja::Environment;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -19,6 +19,34 @@ fn extract_first_image(content: &serde_json::Value) -> Option<String> {
         }
     }
     None
+}
+
+type Context = std::collections::HashMap<String, minijinja::Value>;
+
+fn make_context(
+    site_name: &str,
+    site_description: &Option<String>,
+    logo_url: &Option<String>,
+    favicon_url: &Option<String>,
+    nav_links: &[serde_json::Value],
+    footer_text: &Option<String>,
+    social_links: &serde_json::Value,
+    contact_phone: &Option<String>,
+    contact_email: &Option<String>,
+    contact_address: &Option<String>,
+) -> Context {
+    let mut ctx = Context::new();
+    ctx.insert("site_name".into(), minijinja::Value::from(site_name));
+    ctx.insert("site_description".into(), minijinja::Value::from_serialize(site_description));
+    ctx.insert("logo_url".into(), minijinja::Value::from_serialize(logo_url));
+    ctx.insert("favicon_url".into(), minijinja::Value::from_serialize(favicon_url));
+    ctx.insert("nav_links".into(), minijinja::Value::from_serialize(nav_links));
+    ctx.insert("footer_text".into(), minijinja::Value::from_serialize(footer_text));
+    ctx.insert("social_links".into(), minijinja::Value::from_serialize(social_links));
+    ctx.insert("contact_phone".into(), minijinja::Value::from_serialize(contact_phone));
+    ctx.insert("contact_email".into(), minijinja::Value::from_serialize(contact_email));
+    ctx.insert("contact_address".into(), minijinja::Value::from_serialize(contact_address));
+    ctx
 }
 
 pub async fn build_site(
@@ -220,23 +248,24 @@ pub async fn build_site(
     let output_dir = std::path::Path::new("output");
     std::fs::create_dir_all(output_dir)?;
 
-    let ctx = context! {
-        site_name => site_name,
-        site_description => site_description,
-        logo_url => logo_url,
-        favicon_url => favicon_url,
-        nav_links => nav_links,
-        footer_text => footer_text,
-        social_links => social_links,
-        contact_phone => contact_phone,
-        contact_email => contact_email,
-        contact_address => contact_address,
-        posts => posts_data.clone(),
-        url => "/",
-    };
+    // Build base context once
+    let mut ctx = make_context(
+        &site_name,
+        &site_description,
+        &logo_url,
+        &favicon_url,
+        &nav_links,
+        &footer_text,
+        &social_links,
+        &contact_phone,
+        &contact_email,
+        &contact_address,
+    );
+    ctx.insert("posts".into(), minijinja::Value::from_serialize(&posts_data));
+    ctx.insert("url".into(), minijinja::Value::from("/"));
 
     let index_template = env.get_template("index.html")?;
-    let index_html = index_template.render(ctx)?;
+    let index_html = index_template.render(&ctx)?;
     std::fs::write(output_dir.join("index.html"), index_html)?;
 
     // Individual blog post pages are generated in the page loop below
@@ -245,93 +274,81 @@ pub async fn build_site(
         // Use featured_image from DB, or extract first image from content
         let featured_img = post.4.clone().or_else(|| extract_first_image(&post.2));
 
-        let post_ctx = context! {
-            site_name => site_name,
-            site_description => site_description,
-            logo_url => logo_url,
-        favicon_url => favicon_url,
-            nav_links => nav_links,
-            footer_text => footer_text,
-            social_links => social_links,
-            contact_phone => contact_phone,
-            contact_email => contact_email,
-            contact_address => contact_address,
-            title => &post.0,
-            slug => &post.1,
-            content => render_blocks(&post.2),
-            excerpt => &post.3,
-            featured_image => featured_img,
-            published_at => post.5.map(|dt| dt.format("%Y-%m-%d").to_string()).unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string()),
-            url => format!("/blog/{}", post.1),
-        };
+        let mut post_ctx = make_context(
+            &site_name,
+            &site_description,
+            &logo_url,
+            &favicon_url,
+            &nav_links,
+            &footer_text,
+            &social_links,
+            &contact_phone,
+            &contact_email,
+            &contact_address,
+        );
+        post_ctx.insert("title".into(), minijinja::Value::from(post.0.clone()));
+        post_ctx.insert("slug".into(), minijinja::Value::from(post.1.clone()));
+        post_ctx.insert("content".into(), minijinja::Value::from(render_blocks(&post.2)));
+        post_ctx.insert("excerpt".into(), minijinja::Value::from_serialize(&post.3));
+        post_ctx.insert("featured_image".into(), minijinja::Value::from_serialize(&featured_img));
+        post_ctx.insert("published_at".into(), minijinja::Value::from(post.5.map(|dt| dt.format("%Y-%m-%d").to_string()).unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string())));
+        post_ctx.insert("url".into(), minijinja::Value::from(format!("/blog/{}", post.1)));
+        
         let post_template = env.get_template("page.html")?;
-        let post_html = post_template.render(post_ctx)?;
+        let post_html = post_template.render(&post_ctx)?;
         let blog_dir = output_dir.join("blog");
         std::fs::create_dir_all(&blog_dir)?;
         std::fs::write(blog_dir.join(format!("{}.html", post.1)), post_html)?;
     }
 
     if let Some(home) = homepage {
-        let page_ctx = context! {
-            site_name => site_name,
-            site_description => site_description,
-            logo_url => logo_url,
-        favicon_url => favicon_url,
-            nav_links => nav_links,
-            footer_text => footer_text,
-            social_links => social_links,
-            contact_phone => contact_phone,
-            contact_email => contact_email,
-            contact_address => contact_address,
-            title => &home.0,
-            slug => &home.1,
-            content => render_blocks(&home.2),
-        };
+        let mut page_ctx = make_context(
+            &site_name,
+            &site_description,
+            &logo_url,
+            &favicon_url,
+            &nav_links,
+            &footer_text,
+            &social_links,
+            &contact_phone,
+            &contact_email,
+            &contact_address,
+        );
+        page_ctx.insert("title".into(), minijinja::Value::from(home.0.clone()));
+        page_ctx.insert("slug".into(), minijinja::Value::from(home.1.clone()));
+        page_ctx.insert("content".into(), minijinja::Value::from(render_blocks(&home.2)));
+        
         let page_template = env.get_template("page.html")?;
-        let page_html = page_template.render(page_ctx)?;
+        let page_html = page_template.render(&page_ctx)?;
         std::fs::write(output_dir.join("index.html"), page_html)?;
     }
 
     for page in other_pages {
         let is_blog = page.1 == "blog";
-        let page_ctx = if is_blog {
-            context! {
-                site_name => site_name,
-                site_description => site_description,
-                logo_url => logo_url,
-                favicon_url => favicon_url,
-                nav_links => nav_links,
-                footer_text => footer_text,
-                social_links => social_links,
-                contact_phone => contact_phone,
-                contact_email => contact_email,
-                contact_address => contact_address,
-                title => &page.0,
-                slug => &page.1,
-                content => render_blocks(&page.2),
-                url => format!("/{}", page.1),
-                posts => posts_data.clone(),
-            }
-        } else {
-            context! {
-                site_name => site_name,
-                site_description => site_description,
-                logo_url => logo_url,
-                favicon_url => favicon_url,
-                nav_links => nav_links,
-                footer_text => footer_text,
-                social_links => social_links,
-                contact_phone => contact_phone,
-                contact_email => contact_email,
-                contact_address => contact_address,
-                title => &page.0,
-                slug => &page.1,
-                content => render_blocks(&page.2),
-                url => format!("/{}", page.1),
-            }
-        };
+        
+        let mut page_ctx = make_context(
+            &site_name,
+            &site_description,
+            &logo_url,
+            &favicon_url,
+            &nav_links,
+            &footer_text,
+            &social_links,
+            &contact_phone,
+            &contact_email,
+            &contact_address,
+        );
+        page_ctx.insert("title".into(), minijinja::Value::from(page.0.clone()));
+        page_ctx.insert("slug".into(), minijinja::Value::from(page.1.clone()));
+        page_ctx.insert("content".into(), minijinja::Value::from(render_blocks(&page.2)));
+        page_ctx.insert("url".into(), minijinja::Value::from(format!("/{}", page.1)));
+        
+        if is_blog {
+            page_ctx.insert("posts".into(), minijinja::Value::from_serialize(&posts_data));
+        }
+        
         let page_template = env.get_template("page.html")?;
-        let page_html = page_template.render(page_ctx)?;
+        let page_html = page_template.render(&page_ctx)?;
         std::fs::write(output_dir.join(format!("{}.html", page.1)), page_html)?;
     }
 
