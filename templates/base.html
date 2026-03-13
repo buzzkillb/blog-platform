@@ -40,7 +40,7 @@
         "@context": "https://schema.org",
         "@type": "Article",
         "headline": "{{ title }}",
-        "description": "{{ description | default(value=meta_description) }}",
+        "description": "{{ description | default(value=meta_description) | json_escape }}",
         "url": "{{ url }}",
         {% if featured_image %}"image": "{{ featured_image | safe }}",{% endif %}
         "datePublished": "{{ published_at }}",

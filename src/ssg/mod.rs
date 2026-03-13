@@ -152,6 +152,16 @@ pub async fn build_site(
         .collect();
 
     let mut env = Environment::new();
+    
+    // Add custom filter for JSON-LD escaping (prevents XSS in script tags)
+    env.add_filter("json_escape", |s: String| {
+        s.replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+            .replace('\t', "\\t")
+            .replace("</", "<\\/")
+    });
 
     // Find templates directory
     let cwd = std::env::current_dir().unwrap_or_default();
@@ -305,7 +315,7 @@ pub async fn build_site(
     );
     ctx.insert(
         "url".into(),
-        minijinja::Value::from_safe_string("/".to_string()),
+        minijinja::Value::from("/".to_string()),
     );
 
     let index_template = env.get_template("index.html")?;
@@ -351,7 +361,7 @@ pub async fn build_site(
         );
         post_ctx.insert(
             "url".into(),
-            minijinja::Value::from_safe_string(format!("/blog/{}", post.1)),
+            minijinja::Value::from(format!("/blog/{}", post.1)),
         );
         post_ctx.insert("is_blog_post".into(), minijinja::Value::from(true));
 
@@ -395,7 +405,7 @@ pub async fn build_site(
         );
         page_ctx.insert(
             "url".into(),
-            minijinja::Value::from_safe_string("/".to_string()),
+            minijinja::Value::from("/".to_string()),
         );
 
         let page_template = env.get_template("page.html")?;
@@ -426,7 +436,7 @@ pub async fn build_site(
         );
         page_ctx.insert(
             "url".into(),
-            minijinja::Value::from_safe_string(format!("/{}", page.1)),
+            minijinja::Value::from(format!("/{}", page.1)),
         );
 
         if is_blog {
