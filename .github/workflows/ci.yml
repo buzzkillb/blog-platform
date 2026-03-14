@@ -86,7 +86,7 @@ jobs:
       - name: Start services
         run: docker compose up -d
       - name: Wait for services
-        run: sleep 15
+        run: sleep 30
       - name: Test health endpoint
         run: |
           curl -f http://localhost:3000/health || exit 1
