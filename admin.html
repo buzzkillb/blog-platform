@@ -412,6 +412,23 @@
                 }
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
         }
+
+        async function deployPages() {
+            if (!currentSite) return;
+            try {
+                showToast('Deploying to Cloudflare Pages...');
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/deploy', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast(data.message || 'Deployed successfully!');
+                } else {
+                    showToast(data.message || 'Failed to deploy', 'error');
+                }
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }
         
         function logout() {
             currentUser = null;
@@ -438,6 +455,9 @@
                             <nav class="space-y-1">
                                 <button onclick="buildSite()" class="w-full text-left px-4 py-3 rounded bg-green-600 hover:bg-green-700 text-white font-medium mb-4">
                                     <i class="fas fa-rocket w-6"></i> Build Site
+                                </button>
+                                <button onclick="deployPages()" class="w-full text-left px-4 py-3 rounded bg-orange-600 hover:bg-orange-700 text-white font-medium mb-4">
+                                    <i class="fas fa-cloud-upload-alt w-6"></i> Deploy to Pages
                                 </button>
                                 <button onclick="switchView('settings')" class="w-full text-left px-4 py-2 rounded ${currentView==='settings'?'bg-gray-700 text-white':'text-gray-400 hover:bg-gray-700'}">
                                     <i class="fas fa-cog w-6"></i> Settings
@@ -1257,11 +1277,33 @@
         async function loadPages() {
             if (!currentSite) return;
             try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                if (res.ok) {
-                    const pages = await res.json();
+                const [pagesRes, siteRes] = await Promise.all([
+                    fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    }),
+                    fetch(API_BASE + '/api/sites/' + currentSite, {
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    })
+                ]);
+                
+                if (pagesRes.ok && siteRes.ok) {
+                    let pages = await pagesRes.json();
+                    const site = await siteRes.json();
+                    
+                    // Add blog as a reorderable page when homepage_type includes blog
+                    const blogSortOrder = site.blog_sort_order ?? 1;
+                    if (site.homepage_type === 'blog' || site.homepage_type === 'both') {
+                        pages.unshift({
+                            id: '__blog__',
+                            title: 'Blog',
+                            slug: 'blog',
+                            is_homepage: false,
+                            show_in_nav: true,
+                            sort_order: blogSortOrder,
+                            is_blog: true
+                        });
+                    }
+                    
                     const list = document.getElementById('pages-list');
                     if (pages.length === 0) {
                         list.innerHTML = '<p class="text-gray-400">No pages yet.</p>';
@@ -1273,23 +1315,27 @@
                             <div class="card p-4 rounded-lg flex items-center gap-3" data-page-id="${page.id}" data-sort-order="${page.sort_order || 0}">
                                 <div class="text-gray-500 font-mono text-sm w-6">${index + 1}</div>
                                 <div class="flex-1">
-                                    <h3 class="text-white font-medium">${escapeHtml(page.title)}</h3>
+                                    <h3 class="text-white font-medium">${escapeHtml(page.title)}${page.is_blog ? ' <span class="text-xs text-blue-400">(Blog)</span>' : ''}</h3>
                                     <p class="text-gray-400 text-sm">/${escapeHtml(page.slug)}${page.is_homepage ? ' (Homepage)' : ''}</p>
                                 </div>
                                 <div class="flex items-center gap-2">
+                                    ${page.is_blog ? '<span class="text-xs text-gray-500">Always on</span>' : `
                                     <button type="button" id="navbtn-${page.id}" class="px-3 py-1 rounded text-xs font-medium ${page.show_in_nav === false ? 'bg-gray-600' : 'bg-green-600'} text-white">
                                         ${page.show_in_nav === false ? 'Off' : 'On'}
                                     </button>
+                                    `}
                                     <button type="button" onclick="doMove('${page.id}', -1)" class="p-2 text-gray-400 hover:text-white">↑</button>
                                     <button type="button" onclick="doMove('${page.id}', 1)" class="p-2 text-gray-400 hover:text-white">↓</button>
+                                    ${page.is_blog ? '' : `
                                     <button onclick="editPage('${page.id}')" class="btn-secondary text-white px-3 py-1 rounded">Edit</button>
                                     <button onclick="deletePage('${page.id}')" class="bg-red-600 text-white px-3 py-1 rounded">Delete</button>
+                                    `}
                                 </div>
                             </div>
                         `).join('');
                         
-                        // Attach event handlers after rendering
-                        pages.forEach((page, index) => {
+                        // Attach event handlers after rendering (skip for blog)
+                        pages.filter(p => !p.is_blog).forEach((page, index) => {
                             const btn = document.getElementById('navbtn-' + page.id);
                             if (btn) {
                                 btn.onclick = function() {
@@ -1313,36 +1359,70 @@
         async function doMove(pageId, direction) {
             if (!currentSite) { alert('No site selected'); return; }
             try {
+                // Fetch both site and pages data
+                const [siteRes, pagesRes] = await Promise.all([
+                    fetch(API_BASE + '/api/sites/' + currentSite, {
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    }),
+                    fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    })
+                ]);
                 
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                const pages = await res.json();
-                pages.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+                const site = await siteRes.json();
+                const pages = await pagesRes.json();
                 
-                const currentIndex = pages.findIndex(p => p.id === pageId);
+                // Build list of all items including blog
+                let allItems = pages.map(p => ({ id: p.id, title: p.title, sort_order: p.sort_order || 0, is_blog: false }));
+                
+                // Add blog if enabled
+                if (site.homepage_type === 'blog' || site.homepage_type === 'both') {
+                    allItems.push({ 
+                        id: '__blog__', 
+                        title: 'Blog', 
+                        sort_order: site.blog_sort_order ?? 1, 
+                        is_blog: true 
+                    });
+                }
+                
+                // Sort by sort_order
+                allItems.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+                
+                // Find current index of the moved item
+                const currentIndex = allItems.findIndex(p => p.id === pageId);
                 if (currentIndex === -1) return;
                 
                 const newIndex = currentIndex + direction;
-                if (newIndex < 0 || newIndex >= pages.length) return;
+                if (newIndex < 0 || newIndex >= allItems.length) return;
                 
-                const page1 = pages[currentIndex];
-                const page2 = pages[newIndex];
-                const order1 = page1.sort_order || 0;
-                const order2 = page2.sort_order || 0;
+                // Remove item from current position and insert at new position
+                const [movedItem] = allItems.splice(currentIndex, 1);
+                allItems.splice(newIndex, 0, movedItem);
                 
-                await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + page1.id, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
-                    body: JSON.stringify({ sort_order: order2 })
-                });
+                // Update all sort_orders to be sequential
+                const updatePromises = [];
+                for (let i = 0; i < allItems.length; i++) {
+                    const item = allItems[i];
+                    if (item.is_blog) {
+                        updatePromises.push(
+                            fetch(API_BASE + '/api/sites/' + currentSite, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                                body: JSON.stringify({ blog_sort_order: i })
+                            })
+                        );
+                    } else {
+                        updatePromises.push(
+                            fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + item.id, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                                body: JSON.stringify({ sort_order: i })
+                            })
+                        );
+                    }
+                }
                 
-                await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + page2.id, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
-                    body: JSON.stringify({ sort_order: order1 })
-                });
-                
+                await Promise.all(updatePromises);
                 loadPages();
             } catch (err) { console.error(err); alert('Error: ' + err.message); }
         }
