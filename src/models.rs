@@ -20,6 +20,7 @@ pub struct Site {
     pub contact_address: Option<String>,
     pub homepage_type: String,
     pub blog_path: Option<String>,
+    pub blog_sort_order: i32,
     pub landing_blocks: serde_json::Value,
     pub settings: serde_json::Value,
     pub created_at: DateTime<Utc>,

@@ -47,6 +47,64 @@
             setTimeout(() => toast.remove(), 3000);
         }
         
+        // WYSIWYG Editor Functions
+        function getWysiwygToolbar(blockId) {
+            return `
+                <div class="wysiwyg-toolbar flex gap-1 mb-1 p-1 bg-gray-700 rounded" data-block-id="${blockId}">
+                    <button type="button" onclick="formatText('bold', ${blockId})" title="Bold" class="px-2 py-1 text-sm hover:bg-gray-600 rounded"><i class="fas fa-bold"></i></button>
+                    <button type="button" onclick="formatText('italic', ${blockId})" title="Italic" class="px-2 py-1 text-sm hover:bg-gray-600 rounded"><i class="fas fa-italic"></i></button>
+                    <button type="button" onclick="formatText('underline', ${blockId})" title="Underline" class="px-2 py-1 text-sm hover:bg-gray-600 rounded"><i class="fas fa-underline"></i></button>
+                    <span class="border-l border-gray-500 mx-1"></span>
+                    <button type="button" onclick="formatText('formatBlock', ${blockId}, 'h1')" title="Heading 1" class="px-2 py-1 text-sm hover:bg-gray-600 rounded">H1</button>
+                    <button type="button" onclick="formatText('formatBlock', ${blockId}, 'h2')" title="Heading 2" class="px-2 py-1 text-sm hover:bg-gray-600 rounded">H2</button>
+                    <span class="border-l border-gray-500 mx-1"></span>
+                    <button type="button" onclick="formatText('insertUnorderedList', ${blockId})" title="Bullet List" class="px-2 py-1 text-sm hover:bg-gray-600 rounded"><i class="fas fa-list-ul"></i></button>
+                    <button type="button" onclick="formatText('insertOrderedList', ${blockId})" title="Numbered List" class="px-2 py-1 text-sm hover:bg-gray-600 rounded"><i class="fas fa-list-ol"></i></button>
+                    <span class="border-l border-gray-500 mx-1"></span>
+                    <button type="button" onclick="promptLink(${blockId})" title="Insert Link" class="px-2 py-1 text-sm hover:bg-gray-600 rounded"><i class="fas fa-link"></i></button>
+                    <span class="border-l border-gray-500 mx-1"></span>
+                    <button type="button" onclick="formatText('undo', ${blockId})" title="Undo" class="px-2 py-1 text-sm hover:bg-gray-600 rounded"><i class="fas fa-undo"></i></button>
+                    <button type="button" onclick="formatText('redo', ${blockId})" title="Redo" class="px-2 py-1 text-sm hover:bg-gray-600 rounded"><i class="fas fa-redo"></i></button>
+                </div>
+            `;
+        }
+        
+        function formatText(command, blockId, value = null) {
+            const editor = document.getElementById(`editor-${blockId}`);
+            if (!editor) return;
+            
+            editor.focus();
+            
+            if (command === 'formatBlock' && value) {
+                document.execCommand(command, false, value);
+            } else if (command === 'createLink') {
+                const url = prompt('Enter URL:');
+                if (url) {
+                    document.execCommand(command, false, url);
+                }
+            } else {
+                document.execCommand(command, false, value);
+            }
+            
+            // Update the block content
+            updateBlockFromEditor(blockId);
+        }
+        
+        function promptLink(blockId) {
+            const url = prompt('Enter URL:');
+            if (url) {
+                formatText('createLink', blockId, url);
+            }
+        }
+        
+        function updateBlockFromEditor(blockId) {
+            const editor = document.getElementById(`editor-${blockId}`);
+            if (editor) {
+                const content = editor.innerHTML;
+                updateBlock(blockId, content);
+            }
+        }
+        
         // Escape HTML to prevent XSS
         function escapeHtml(str) {
             if (!str) return '';
@@ -359,6 +417,29 @@
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
         }
 
+        async function deployPages() {
+            if (!currentSite) return;
+            try {
+                showToast('Deploying to Cloudflare Pages...');
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/deploy', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    const match = data.message.match(/https:\/\/[^\s]+/);
+                    const url = match ? match[0] : null;
+                    if (url) {
+                        showToast(`Deployed! <a href="${url}" target="_blank" class="underline font-bold">${url}</a>`);
+                    } else {
+                        showToast(data.message || 'Deployed successfully!');
+                    }
+                } else {
+                    showToast(data.message || 'Deploy failed', 'error');
+                }
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }
+
         async function createSite(e) {
             e.preventDefault();
             const name = document.getElementById('site-name').value;
@@ -436,8 +517,11 @@
                     <div class="flex">
                         <aside class="w-56 bg-gray-800 border-r border-gray-700 min-h-screen p-4">
                             <nav class="space-y-1">
-                                <button onclick="buildSite()" class="w-full text-left px-4 py-3 rounded bg-green-600 hover:bg-green-700 text-white font-medium mb-4">
+                                <button onclick="buildSite()" class="w-full text-left px-4 py-3 rounded bg-green-600 hover:bg-green-700 text-white font-medium mb-2">
                                     <i class="fas fa-rocket w-6"></i> Build Site
+                                </button>
+                                <button onclick="deployPages()" class="w-full text-left px-4 py-3 rounded bg-orange-600 hover:bg-orange-700 text-white font-medium mb-4">
+                                    <i class="fas fa-cloud-upload-alt w-6"></i> Deploy to Pages
                                 </button>
                                 <button onclick="switchView('settings')" class="w-full text-left px-4 py-2 rounded ${currentView==='settings'?'bg-gray-700 text-white':'text-gray-400 hover:bg-gray-700'}">
                                     <i class="fas fa-cog w-6"></i> Settings
@@ -721,9 +805,13 @@
                             ondragleave="handleDragLeave(event)"
                             ondrop="handleDrop(event, ${block.id})">
                             <span class="block-handle">⋮⋮</span>
-                            <textarea class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 ml-2" 
-                                rows="3" placeholder="Type your text..." 
-                                onchange="updateBlock(${block.id}, this.value)">${block.content}</textarea>
+                            <div class="ml-2">
+                                ${getWysiwygToolbar(block.id)}
+                                <div id="editor-${block.id}" contenteditable="true" 
+                                    class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 min-h-[80px]"
+                                    placeholder="Type your text..."
+                                    oninput="updateBlockFromEditor(${block.id})">${block.content || ''}</div>
+                            </div>
                             <button onclick="removeBlock(${block.id})" class="absolute top-2 right-2 text-gray-500 hover:text-red-400">✕</button>
                         </div>`;
                 } else if (block.type === 'heading') {
@@ -924,7 +1012,7 @@
                     // Parse blocks from content
                     if (post.content && post.content.length > 0) {
                         blocks = post.content.map((b, i) => {
-                            const blockType = b.block_type || 'paragraph';
+                            const blockType = b.type || b.block_type || 'paragraph';
                             let content = '';
                             if (blockType === 'hero') {
                                 content = b.content || { title: '', subtitle: '', backgroundImage: '', ctaText: '', ctaLink: '' };
@@ -932,6 +1020,8 @@
                                 content = b.content || { url: '', caption: '' };
                             } else if (blockType === 'columns') {
                                 content = b.content || { left: '', right: '', leftImage: '', rightImage: '' };
+                            } else if (typeof b.content === 'string') {
+                                content = b.content;
                             } else {
                                 content = b.content?.text || b.content?.url || b.content?.href || '';
                             }
@@ -956,20 +1046,23 @@
         function buildContentFromBlocks() {
             return blocks.map(b => {
                 if (b.type === 'paragraph') {
-                    return { block_type: 'paragraph', content: { text: b.content } };
+                    const content = typeof b.content === 'string' ? b.content : (b.content?.text || '');
+                    return { type: 'paragraph', content };
                 } else if (b.type === 'heading') {
-                    return { block_type: 'heading', content: { text: b.content, level: 2 } };
+                    const content = typeof b.content === 'string' ? b.content : (b.content?.text || '');
+                    return { type: 'heading', content: { text: content, level: 2 } };
                 } else if (b.type === 'image') {
-                    return { block_type: 'image', content: { url: b.content, alt: '' } };
+                    return { type: 'image', content: b.content };
                 } else if (b.type === 'link') {
-                    return { block_type: 'link', content: { href: b.content, text: b.content } };
+                    return { type: 'link', content: b.content };
                 } else if (b.type === 'hero') {
-                    return { block_type: 'hero', content: b.content || { title: '', subtitle: '', backgroundImage: '', ctaText: '', ctaLink: '' } };
+                    return { type: 'hero', content: b.content || { title: '', subtitle: '', backgroundImage: '', ctaText: '', ctaLink: '' } };
                 } else if (b.type === 'video') {
-                    return { block_type: 'video', content: b.content || { url: '', caption: '' } };
+                    return { type: 'video', content: b.content || { url: '', caption: '' } };
                 } else if (b.type === 'columns') {
-                    return { block_type: 'columns', content: b.content || { left: '', right: '', leftImage: '', rightImage: '' } };
+                    return { type: 'columns', content: b.content || { left: '', right: '', leftImage: '', rightImage: '' } };
                 }
+                return { type: 'paragraph', content: b.content || '' };
             });
         }
 
@@ -1025,6 +1118,8 @@
             
             try {
                 let res;
+                let postId = editingPostId;
+                
                 if (editingPostId) {
                     res = await fetch(API_BASE + '/api/sites/' + currentSite + '/posts/' + editingPostId, {
                         method: 'PUT',
@@ -1036,7 +1131,7 @@
                     });
                     if (res.ok) {
                         const post = await res.json();
-                        editingPostId = post.id;
+                        postId = post.id;
                     }
                 } else {
                     res = await fetch(API_BASE + '/api/sites/' + currentSite + '/posts', {
@@ -1049,13 +1144,23 @@
                     });
                     if (res.ok) {
                         const post = await res.json();
-                        editingPostId = post.id;
+                        postId = post.id;
+                        editingPostId = postId;
                     }
                 }
                 
-                if (!editingPostId) { showToast('Failed to save', 'error'); return; }
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+                    showToast('Failed to save: ' + (err.error || res.status), 'error');
+                    return;
+                }
                 
-                const publishRes = await fetch(API_BASE + '/api/sites/' + currentSite + '/posts/' + editingPostId + '/publish', { 
+                if (!postId) {
+                    showToast('Failed to save: No post ID returned', 'error');
+                    return;
+                }
+                
+                const publishRes = await fetch(API_BASE + '/api/sites/' + currentSite + '/posts/' + postId + '/publish', { 
                     method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + authToken }
                 });
@@ -1230,11 +1335,19 @@
             document.querySelectorAll('#page-blocks-container .editor-block').forEach(b => b.classList.remove('drag-over'));
         }
 
+        function updatePageBlockFromEditor(blockId) {
+            const editor = document.getElementById(`page-editor-${blockId}`);
+            if (editor) {
+                const content = editor.innerHTML;
+                updatePageBlock(blockId, content);
+            }
+        }
+        
         function renderPageBlocks() {
             const container = document.getElementById('page-blocks-container');
             container.innerHTML = pageBlocks.map(block => {
                 if (block.type === 'paragraph') {
-                    return `<div class="editor-block relative" draggable="true" ondragstart="handlePageDragStart(event, ${block.id})" ondragend="handlePageDragEnd(event)" ondragover="handlePageDragOver(event)" ondragenter="handlePageDragEnter(event)" ondragleave="handlePageDragLeave(event)" ondrop="handlePageDrop(event, ${block.id})"><span class="block-handle">⋮⋮</span><textarea class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 ml-2" rows="3" placeholder="Type text..." onchange="updatePageBlock(${block.id}, this.value)">${block.content}</textarea><button onclick="removePageBlock(${block.id})" class="absolute top-2 right-2 text-gray-500 hover:text-red-400">✕</button></div>`;
+                    return `<div class="editor-block relative" draggable="true" ondragstart="handlePageDragStart(event, ${block.id})" ondragend="handlePageDragEnd(event)" ondragover="handlePageDragOver(event)" ondragenter="handlePageDragEnter(event)" ondragleave="handlePageDragLeave(event)" ondrop="handlePageDrop(event, ${block.id})"><span class="block-handle">⋮⋮</span><div class="ml-2">${getWysiwygToolbar(block.id)}<div id="page-editor-${block.id}" contenteditable="true" class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 min-h-[80px]" placeholder="Type text..." oninput="updatePageBlockFromEditor(${block.id})">${block.content || ''}</div></div><button onclick="removePageBlock(${block.id})" class="absolute top-2 right-2 text-gray-500 hover:text-red-400">✕</button></div>`;
                 } else if (block.type === 'heading') {
                     return `<div class="editor-block relative" draggable="true" ondragstart="handlePageDragStart(event, ${block.id})" ondragend="handlePageDragEnd(event)" ondragover="handlePageDragOver(event)" ondragenter="handlePageDragEnter(event)" ondragleave="handlePageDragLeave(event)" ondrop="handlePageDrop(event, ${block.id})"><span class="block-handle">⋮⋮</span><input type="text" class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-lg ml-2" placeholder="Heading..." value="${block.content}" onchange="updatePageBlock(${block.id}, this.value)"><button onclick="removePageBlock(${block.id})" class="absolute top-2 right-2 text-gray-500 hover:text-red-400">✕</button></div>`;
                 } else if (block.type === 'image') {
@@ -1257,94 +1370,200 @@
         async function loadPages() {
             if (!currentSite) return;
             try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                if (res.ok) {
-                    const pages = await res.json();
+                const [pagesRes, siteRes] = await Promise.all([
+                    fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    }),
+                    fetch(API_BASE + '/api/sites/' + currentSite, {
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    })
+                ]);
+                
+                if (pagesRes.ok) {
+                    const pages = await pagesRes.json();
+                    const site = siteRes.ok ? await siteRes.json() : {};
+                    console.log('loadPages - site:', site);
+                    const homepageType = site.homepage_type || 'both';
+                    const blogSortOrder = site.blog_sort_order || 1;
+                    const blogPath = site.blog_path || '/blog';
+                    
                     const list = document.getElementById('pages-list');
-                    if (pages.length === 0) {
+                    
+                    // Build items array with blog as a special item
+                    let items = pages.map(page => ({
+                        id: page.id,
+                        title: page.title,
+                        slug: page.slug,
+                        is_homepage: page.is_homepage,
+                        show_in_nav: page.show_in_nav,
+                        sort_order: page.sort_order || 0,
+                        isBlog: false
+                    }));
+                    
+                    // Add blog first if enabled
+                    if (homepageType === 'blog' || homepageType === 'both') {
+                        items.push({
+                            id: 'blog',
+                            title: 'Blog',
+                            slug: blogPath,
+                            is_homepage: false,
+                            show_in_nav: true,
+                            sort_order: blogSortOrder,
+                            isBlog: true
+                        });
+                    }
+                    
+                    // Sort by the stored sort_order
+                    items.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+                    
+                    // Display using index + 1 for position numbers (not overwriting stored values)
+                    const displayItems = items.map((item, idx) => ({...item, displayOrder: idx + 1}));
+                    
+                    if (displayItems.length === 0) {
                         list.innerHTML = '<p class="text-gray-400">No pages yet.</p>';
                     } else {
-                        // Sort by sort_order
-                        pages.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-                        
-                        list.innerHTML = pages.map((page, index) => `
-                            <div class="card p-4 rounded-lg flex items-center gap-3" data-page-id="${page.id}" data-sort-order="${page.sort_order || 0}">
+                        list.innerHTML = displayItems.map((page, index) => `
+                            <div class="card p-4 rounded-lg flex items-center gap-3" data-page-id="${page.id}" data-sort-order="${page.sort_order}" data-is-blog="${page.isBlog}">
                                 <div class="text-gray-500 font-mono text-sm w-6">${index + 1}</div>
                                 <div class="flex-1">
-                                    <h3 class="text-white font-medium">${escapeHtml(page.title)}</h3>
-                                    <p class="text-gray-400 text-sm">/${escapeHtml(page.slug)}${page.is_homepage ? ' (Homepage)' : ''}</p>
+                                    <h3 class="text-white font-medium">${page.isBlog ? '📰 ' : ''}${escapeHtml(page.title)}</h3>
+                                    <p class="text-gray-400 text-sm">${escapeHtml(page.slug)}${page.is_homepage ? ' (Homepage)' : ''}</p>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <button type="button" id="navbtn-${page.id}" class="px-3 py-1 rounded text-xs font-medium ${page.show_in_nav === false ? 'bg-gray-600' : 'bg-green-600'} text-white">
-                                        ${page.show_in_nav === false ? 'Off' : 'On'}
-                                    </button>
                                     <button type="button" onclick="doMove('${page.id}', -1)" class="p-2 text-gray-400 hover:text-white">↑</button>
                                     <button type="button" onclick="doMove('${page.id}', 1)" class="p-2 text-gray-400 hover:text-white">↓</button>
-                                    <button onclick="editPage('${page.id}')" class="btn-secondary text-white px-3 py-1 rounded">Edit</button>
-                                    <button onclick="deletePage('${page.id}')" class="bg-red-600 text-white px-3 py-1 rounded">Delete</button>
+                                    ${!page.isBlog ? `<button onclick="editPage('${page.id}')" class="btn-secondary text-white px-3 py-1 rounded">Edit</button>
+                                    <button onclick="deletePage('${page.id}')" class="bg-red-600 text-white px-3 py-1 rounded">Delete</button>` : ''}
                                 </div>
                             </div>
                         `).join('');
-                        
-                        // Attach event handlers after rendering
-                        pages.forEach((page, index) => {
-                            const btn = document.getElementById('navbtn-' + page.id);
-                            if (btn) {
-                                btn.onclick = function() {
-                                    var newVal = page.show_in_nav !== false ? false : true;
-                                    var url = API_BASE + '/api/sites/' + currentSite + '/pages/' + page.id;
-                                    fetch(url, {
-                                        method: 'PUT',
-                                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
-                                        body: JSON.stringify({ show_in_nav: newVal })
-                                    }).then(function(res) {
-                                        if (res.ok) loadPages();
-                                    });
-                                };
-                            }
-                        });
                     }
                 }
             } catch (err) { console.error(err); }
         }
         
         async function doMove(pageId, direction) {
+            console.log('doMove called:', pageId, direction);
             if (!currentSite) { alert('No site selected'); return; }
+            
+            const isBlog = pageId === 'blog';
+            console.log('isBlog:', isBlog, 'pageId:', pageId);
+            
+            if (isBlog) {
+                try {
+                    // Get site and pages
+                    const [siteRes, pagesRes] = await Promise.all([
+                        fetch(API_BASE + '/api/sites/' + currentSite, {
+                            headers: { 'Authorization': 'Bearer ' + authToken }
+                        }),
+                        fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
+                            headers: { 'Authorization': 'Bearer ' + authToken }
+                        })
+                    ]);
+                    
+                    const site = await siteRes.json();
+                    const pages = await pagesRes.json();
+                    const blogSortOrder = site.blog_sort_order || 1;
+                    
+                    // Build combined list
+                    let items = pages.map(p => ({
+                        id: p.id,
+                        sort_order: p.sort_order || 0,
+                        isBlog: false
+                    }));
+                    
+                    const homepageType = site.homepage_type || 'both';
+                    console.log('homepageType:', homepageType, 'blogSortOrder:', blogSortOrder);
+                    if (homepageType === 'blog' || homepageType === 'both') {
+                        items.push({
+                            id: 'blog',
+                            sort_order: blogSortOrder,
+                            isBlog: true
+                        });
+                    }
+                    
+                    items.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+                    console.log('Items after sort:', JSON.stringify(items.map(i => ({id: i.id, sort_order: i.sort_order, isBlog: i.isBlog}))));
+                    
+                    // Find current blog position
+                    const currentIndex = items.findIndex(i => i.isBlog);
+                    console.log('currentIndex:', currentIndex, 'direction:', direction);
+                    const newIndex = currentIndex + direction;
+                    console.log('newIndex:', newIndex, 'items.length:', items.length);
+                    
+                    if (newIndex < 0 || newIndex >= items.length) {
+                        console.log('Bailing out - bounds check');
+                        return;
+                    }
+                    
+                    // Move blog to new position
+                    const blogIndex = items.findIndex(i => i.isBlog);
+                    const [blogItem] = items.splice(blogIndex, 1); // Remove blog from current position
+                    items.splice(newIndex, 0, blogItem); // Insert at new position
+                    console.log('Items after splice:', JSON.stringify(items.map(i => ({id: i.id, sort_order: i.sort_order, isBlog: i.isBlog}))));
+                    
+                    // Assign new sequential sort_order values
+                    for (let i = 0; i < items.length; i++) {
+                        console.log(`Updating index ${i}:`, items[i].id, 'isBlog:', items[i].isBlog);
+                        if (items[i].isBlog) {
+                            await fetch(API_BASE + '/api/sites/' + currentSite, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                                body: JSON.stringify({ blog_sort_order: i + 1 })
+                            }).then(r => console.log('Blog update res:', r.status)).catch(e => console.log('Blog update err:', e));
+                        } else {
+                            await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + items[i].id, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                                body: JSON.stringify({ sort_order: i + 1 })
+                            }).then(r => console.log('Page', items[i].id, 'update res:', r.status)).catch(e => console.log('Page update err:', e));
+                        }
+                    }
+                    
+                    loadPages();
+                } catch (err) { 
+                    console.error(err);
+                    showToast('Error moving blog: ' + err.message, 'error');
+                }
+                return;
+            }
+            
+            // Handle regular page reordering
             try {
-                
                 const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
                     headers: { 'Authorization': 'Bearer ' + authToken }
                 });
+                if (!res.ok) { alert('Failed to load pages'); return; }
                 const pages = await res.json();
+                
+                // Sort by stored sort_order
                 pages.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
                 
+                // Find current page
                 const currentIndex = pages.findIndex(p => p.id === pageId);
-                if (currentIndex === -1) return;
+                if (currentIndex === -1) { alert('Page not found'); return; }
                 
                 const newIndex = currentIndex + direction;
-                if (newIndex < 0 || newIndex >= pages.length) return;
+                if (newIndex < 0 || newIndex >= pages.length) { return; }
                 
                 const page1 = pages[currentIndex];
                 const page2 = pages[newIndex];
-                const order1 = page1.sort_order || 0;
-                const order2 = page2.sort_order || 0;
                 
+                // Swap sort_order values (use array position + 1)
                 await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + page1.id, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
-                    body: JSON.stringify({ sort_order: order2 })
+                    body: JSON.stringify({ sort_order: newIndex + 1 })
                 });
                 
                 await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + page2.id, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
-                    body: JSON.stringify({ sort_order: order1 })
+                    body: JSON.stringify({ sort_order: currentIndex + 1 })
                 });
                 
                 loadPages();
-            } catch (err) { console.error(err); alert('Error: ' + err.message); }
+            } catch (err) { console.error(err); }
         }
 
         async function editPage(id) {
@@ -1364,7 +1583,7 @@
                     
                     if (page.content && page.content.length > 0) {
                         pageBlocks = page.content.map((b, i) => {
-                            const blockType = b.block_type || 'paragraph';
+                            const blockType = b.type || b.block_type || 'paragraph';
                             let content = '';
                             if (blockType === 'hero') {
                                 content = b.content || { title: '', subtitle: '', backgroundImage: '', ctaText: '', ctaLink: '' };
@@ -1372,6 +1591,8 @@
                                 content = b.content || { url: '', caption: '' };
                             } else if (blockType === 'columns') {
                                 content = b.content || { left: '', right: '', leftImage: '', rightImage: '' };
+                            } else if (typeof b.content === 'string') {
+                                content = b.content;
                             } else {
                                 content = b.content?.text || b.content?.url || b.content?.href || '';
                             }
@@ -1395,13 +1616,24 @@
 
         function buildPageContentFromBlocks() {
             return pageBlocks.map(b => {
-                if (b.type === 'paragraph') return { block_type: 'paragraph', content: { text: b.content } };
-                else if (b.type === 'heading') return { block_type: 'heading', content: { text: b.content, level: 2 } };
-                else if (b.type === 'image') return { block_type: 'image', content: { url: b.content, alt: '' } };
-                else if (b.type === 'link') return { block_type: 'link', content: { href: b.content, text: b.content } };
-                else if (b.type === 'hero') return { block_type: 'hero', content: b.content || { title: '', subtitle: '', backgroundImage: '', ctaText: '', ctaLink: '' } };
-                else if (b.type === 'video') return { block_type: 'video', content: b.content || { url: '', caption: '' } };
-                else if (b.type === 'columns') return { block_type: 'columns', content: b.content || { left: '', right: '', leftImage: '', rightImage: '' } };
+                if (b.type === 'paragraph') {
+                    const content = typeof b.content === 'string' ? b.content : (b.content?.text || '');
+                    return { type: 'paragraph', content };
+                } else if (b.type === 'heading') {
+                    const content = typeof b.content === 'string' ? b.content : (b.content?.text || '');
+                    return { type: 'heading', content: { text: content, level: 2 } };
+                } else if (b.type === 'image') {
+                    return { type: 'image', content: b.content };
+                } else if (b.type === 'link') {
+                    return { type: 'link', content: b.content };
+                } else if (b.type === 'hero') {
+                    return { type: 'hero', content: b.content || { title: '', subtitle: '', backgroundImage: '', ctaText: '', ctaLink: '' } };
+                } else if (b.type === 'video') {
+                    return { type: 'video', content: b.content || { url: '', caption: '' } };
+                } else if (b.type === 'columns') {
+                    return { type: 'columns', content: b.content || { left: '', right: '', leftImage: '', rightImage: '' } };
+                }
+                return { type: 'paragraph', content: b.content || '' };
             });
         }
 
@@ -1680,6 +1912,12 @@
                                     <option value="blog" ${site.homepage_type === 'blog' ? 'selected' : ''}>Blog (show posts)</option>
                                     <option value="landing" ${site.homepage_type === 'landing' ? 'selected' : ''}>Landing Page</option>
                                 </select>
+                            </div>
+                            
+                            <div class="pt-6 border-t border-gray-700">
+                                <button onclick="deployPages()" class="w-full text-left px-4 py-3 rounded bg-orange-600 hover:bg-orange-700 text-white font-medium mb-4">
+                                    <i class="fas fa-cloud-upload-alt w-6"></i> Deploy to Pages
+                                </button>
                             </div>
                             
                             <div class="pt-6">

@@ -92,7 +92,7 @@ pub async fn build_site(
     site_id: Uuid,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let site_row = sqlx::query(
-        "SELECT id, name, description, logo_url, favicon_url, footer_text, social_links, contact_phone, contact_email, contact_address, custom_domain FROM sites WHERE id = $1"
+        "SELECT id, name, description, logo_url, favicon_url, footer_text, social_links, contact_phone, contact_email, contact_address, custom_domain, COALESCE(homepage_type, 'both') as homepage_type, COALESCE(blog_path, '/blog') as blog_path, COALESCE(blog_sort_order, 1) as blog_sort_order FROM sites WHERE id = $1"
     )
     .bind(site_id)
     .fetch_one(db)
@@ -111,6 +111,11 @@ pub async fn build_site(
     let contact_email: Option<String> = site_row.get("contact_email");
     let contact_address: Option<String> = site_row.get("contact_address");
     let domain: Option<String> = site_row.get("custom_domain");
+    let homepage_type: Option<String> = site_row.get("homepage_type");
+    let blog_path: Option<String> = site_row.get("blog_path");
+    let blog_sort_order: i32 = site_row.get("blog_sort_order");
+    let homepage_type = homepage_type.unwrap_or_else(|| "both".to_string());
+    let blog_path = blog_path.unwrap_or_else(|| "/blog".to_string());
 
     // Build site URL - use custom_domain as the primary domain
     let site_url = if let Some(d) = domain {
@@ -140,8 +145,9 @@ pub async fn build_site(
     .await?;
 
     // Build nav_links from pages with show_in_nav = true (excluding homepage which is always at /)
+    // Pages are already sorted by sort_order from the SQL query
     let nav_pages: Vec<_> = pages.iter().filter(|p| p.4 && !p.3).collect();
-    let nav_links: Vec<serde_json::Value> = nav_pages
+    let mut nav_links: Vec<serde_json::Value> = nav_pages
         .iter()
         .map(|p| {
             serde_json::json!({
@@ -150,6 +156,28 @@ pub async fn build_site(
             })
         })
         .collect();
+    
+    // Add blog link at the correct position based on blog_sort_order if homepage_type is "blog" or "both"
+    if homepage_type == "blog" || homepage_type == "both" {
+        let blog_link = serde_json::json!({
+            "label": "Blog",
+            "url": blog_path
+        });
+        // Find first page with sort_order >= blog_sort_order - insert before it
+        let insert_pos = nav_links.iter().enumerate()
+            .find(|(_, link)| {
+                let url = link.get("url").and_then(|v| v.as_str()).unwrap_or("");
+                let page_sort = pages.iter()
+                    .find(|p| format!("/{}", p.1) == url)
+                    .map(|p| p.5)
+                    .unwrap_or(999);
+                page_sort >= blog_sort_order
+            })
+            .map(|(i, _)| i)
+            .unwrap_or(nav_links.len());
+        
+        nav_links.insert(insert_pos, blog_link);
+    }
 
     let mut env = Environment::new();
 
@@ -433,23 +461,51 @@ fn render_blocks(content: &serde_json::Value) -> String {
     if let Some(blocks) = content.as_array() {
         blocks.iter()
             .map(|block| {
-                let block_type = block.get("block_type").and_then(|b| b.as_str()).unwrap_or("text");
+                let block_type = block.get("type").or_else(|| block.get("block_type")).and_then(|b| b.as_str()).unwrap_or("text");
                 let block_content = block.get("content");
 
                 match block_type {
                     "heading" => {
                         let level = block.get("level").and_then(|l| l.as_i64()).unwrap_or(2);
-                        let text = escape_html(block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or(""));
+                        let text = block_content
+                            .and_then(|c| c.get("text"))
+                            .and_then(|t| t.as_str())
+                            .unwrap_or("");
+                        let text = escape_html(text);
                         format!("<h{}>{}</h{}>", level, text, level)
                     }
                     "paragraph" => {
-                        let text = escape_html(block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or(""));
-                        format!("<p>{}</p>", text)
+                        let text = if let Some(s) = block_content.and_then(|c| c.as_str()) {
+                            s.to_string()
+                        } else {
+                            block_content
+                                .and_then(|c| c.get("text"))
+                                .and_then(|t| t.as_str())
+                                .map(|t| escape_html(t))
+                                .unwrap_or_default()
+                        };
+                        if text.is_empty() {
+                            String::new()
+                        } else {
+                            format!("<p>{}</p>", text)
+                        }
                     }
                     "image" => {
-                        let url = escape_html(block_content.and_then(|c| c.get("url")).and_then(|u| u.as_str()).unwrap_or(""));
-                        let alt = escape_html(block_content.and_then(|c| c.get("alt")).and_then(|a| a.as_str()).unwrap_or(""));
-                        format!("<figure><img src=\"{}\" alt=\"{}\"><figcaption>{}</figcaption></figure>", url, alt, alt)
+                        let url = if let Some(s) = block_content.and_then(|c| c.as_str()) {
+                            escape_html(s)
+                        } else {
+                            escape_html(block_content.and_then(|c| c.get("url")).and_then(|u| u.as_str()).unwrap_or(""))
+                        };
+                        let alt = block_content
+                            .and_then(|c| c.get("alt"))
+                            .and_then(|a| a.as_str())
+                            .map(escape_html)
+                            .unwrap_or_default();
+                        if url.is_empty() {
+                            String::new()
+                        } else {
+                            format!("<figure><img src=\"{}\" alt=\"{}\"><figcaption>{}</figcaption></figure>", url, alt, alt)
+                        }
                     }
                     "code" => {
                         let code = escape_html(block_content.and_then(|c| c.get("code")).and_then(|c| c.as_str()).unwrap_or(""));
@@ -457,8 +513,16 @@ fn render_blocks(content: &serde_json::Value) -> String {
                         format!("<pre><code class=\"language-{}\">{}</code></pre>", lang, code)
                     }
                     "quote" => {
-                        let text = escape_html(block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or(""));
-                        let citation = escape_html(block_content.and_then(|c| c.get("citation")).and_then(|c| c.as_str()).unwrap_or(""));
+                        let text = block_content
+                            .and_then(|c| c.get("text"))
+                            .and_then(|t| t.as_str())
+                            .map(escape_html)
+                            .unwrap_or_default();
+                        let citation = block_content
+                            .and_then(|c| c.get("citation"))
+                            .and_then(|c| c.as_str())
+                            .map(escape_html)
+                            .unwrap_or_default();
                         format!("<blockquote>{}<cite>{}</cite></blockquote>", text, citation)
                     }
                     "hero" => {
@@ -501,8 +565,16 @@ fn render_blocks(content: &serde_json::Value) -> String {
                         } else { String::new() }
                     }
                     "columns" => {
-                        let left = escape_html(block_content.and_then(|c| c.get("left")).and_then(|t| t.as_str()).unwrap_or(""));
-                        let right = escape_html(block_content.and_then(|c| c.get("right")).and_then(|t| t.as_str()).unwrap_or(""));
+                        let left = block_content
+                            .and_then(|c| c.get("left"))
+                            .and_then(|t| t.as_str())
+                            .map(escape_html)
+                            .unwrap_or_default();
+                        let right = block_content
+                            .and_then(|c| c.get("right"))
+                            .and_then(|t| t.as_str())
+                            .map(escape_html)
+                            .unwrap_or_default();
                         let left_img = block_content.and_then(|c| c.get("leftImage")).and_then(|t| t.as_str()).unwrap_or("");
                         let right_img = block_content.and_then(|c| c.get("rightImage")).and_then(|t| t.as_str()).unwrap_or("");
                         format!(r#"<div class="columns-block" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin: 2rem 0;">
@@ -520,8 +592,20 @@ fn render_blocks(content: &serde_json::Value) -> String {
                         )
                     }
                     _ => {
-                        let text = escape_html(block_content.and_then(|c| c.get("text")).and_then(|t| t.as_str()).unwrap_or(""));
-                        format!("<p>{}</p>", text)
+                        let text = if let Some(s) = block_content.and_then(|c| c.as_str()) {
+                            s.to_string()
+                        } else {
+                            block_content
+                                .and_then(|c| c.get("text"))
+                                .and_then(|t| t.as_str())
+                                .map(escape_html)
+                                .unwrap_or_default()
+                        };
+                        if text.is_empty() {
+                            String::new()
+                        } else {
+                            format!("<p>{}</p>", text)
+                        }
                     }
                 }
             })
@@ -530,4 +614,54 @@ fn render_blocks(content: &serde_json::Value) -> String {
     } else {
         String::new()
     }
+}
+
+pub async fn deploy_to_cloudflare() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let project_name = std::env::var("CLOUDFLARE_PAGES_PROJECT")
+        .map_err(|_| "CLOUDFLARE_PAGES_PROJECT not set")?;
+
+    let output_dir = std::path::Path::canonicalize(std::path::Path::new("output"))
+        .map_err(|_| "Output directory does not exist")?;
+
+    if !output_dir.exists() {
+        return Err("Output directory does not exist. Build the site first.".into());
+    }
+
+    tracing::info!(
+        "Starting Cloudflare deployment using wrangler for project: {}",
+        project_name
+    );
+
+    let output = tokio::process::Command::new("wrangler")
+        .args([
+            "pages",
+            "deploy",
+            output_dir.to_str().unwrap_or("output"),
+            "--project-name",
+            &project_name,
+            "--branch",
+            "main",
+            "--no-bundle",
+        ])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run wrangler: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    tracing::info!("Wrangler output: {}", stdout);
+
+    if !output.status.success() {
+        tracing::error!("Wrangler error: {}", stderr);
+        return Err(format!("Wrangler deployment failed: {}", stderr).into());
+    }
+
+    let deployment_url = stdout
+        .lines()
+        .find(|l| l.contains("pages.dev"))
+        .map(|l| l.trim().to_string())
+        .unwrap_or_else(|| format!("https://{}.pages.dev", project_name));
+
+    Ok(format!("Deployed successfully! Visit: {}", deployment_url))
 }

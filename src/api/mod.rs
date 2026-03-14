@@ -56,6 +56,7 @@ pub fn routes() -> Router<crate::AppState> {
             get(sites::list_contact_submissions),
         )
         .route("/api/sites/{site_id}/build", post(build_site))
+        .route("/api/sites/{site_id}/deploy", post(deploy_pages))
 }
 
 async fn build_site(
@@ -80,6 +81,36 @@ async fn build_site(
         Err(e) => {
             tracing::error!("Failed to build site: {}", e);
             Err(ApiError::new(format!("Failed to build site: {}", e)))
+        }
+    }
+}
+
+async fn deploy_pages(
+    Path(site_id): Path<uuid::Uuid>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let current_user = auth::require_auth(State(state.clone()), headers)
+        .await
+        .map_err(|e| ApiError::new(e.message))?;
+
+    auth::require_site_member(&state, site_id, current_user.user_id)
+        .await
+        .map_err(|e| ApiError::new(e.message))?;
+
+    // First build the site
+    let db = state.db.clone();
+    if let Err(e) = crate::ssg::build_site(&db, site_id).await {
+        tracing::error!("Failed to build site: {}", e);
+        return Err(ApiError::new(format!("Failed to build site: {}", e)));
+    }
+
+    // Then deploy to Cloudflare
+    match crate::ssg::deploy_to_cloudflare().await {
+        Ok(message) => Ok(Json(serde_json::json!({ "message": message }))),
+        Err(e) => {
+            tracing::error!("Failed to deploy to Cloudflare: {}", e);
+            Err(ApiError::new(format!("Failed to deploy: {}", e)))
         }
     }
 }
