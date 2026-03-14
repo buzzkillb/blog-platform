@@ -236,6 +236,11 @@ async fn run_migrations(db: &sqlx::PgPool) {
         .await
         .ok();
 
+    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS blog_sort_order INTEGER DEFAULT 1")
+        .execute(db)
+        .await
+        .ok();
+
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS users (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -384,6 +389,24 @@ async fn run_migrations(db: &sqlx::PgPool) {
         .execute(db)
         .await
         .ok();
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_posts_slug ON posts(site_id, slug)")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_pages_slug ON pages(site_id, slug)")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_site_members_user ON site_members(user_id)")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_contact_submissions_site_created ON contact_submissions(site_id, created_at DESC)",
+    )
+    .execute(db)
+    .await
+    .ok();
 }
 
 async fn seed_default_pages(db: &sqlx::PgPool) {
