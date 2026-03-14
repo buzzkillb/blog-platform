@@ -1257,33 +1257,76 @@
         async function loadPages() {
             if (!currentSite) return;
             try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                if (res.ok) {
-                    const pages = await res.json();
+                const [pagesRes, siteRes] = await Promise.all([
+                    fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    }),
+                    fetch(API_BASE + '/api/sites/' + currentSite, {
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    })
+                ]);
+                
+                if (pagesRes.ok) {
+                    const pages = await pagesRes.json();
+                    const site = siteRes.ok ? await siteRes.json() : {};
+                    const homepageType = site.homepage_type || 'both';
+                    const blogSortOrder = site.blog_sort_order || 1;
+                    const blogPath = site.blog_path || '/blog';
+                    
                     const list = document.getElementById('pages-list');
-                    if (pages.length === 0) {
+                    
+                    let items = pages.map(page => ({
+                        id: page.id,
+                        title: page.title,
+                        slug: page.slug,
+                        is_homepage: page.is_homepage,
+                        show_in_nav: page.show_in_nav,
+                        sort_order: page.sort_order || 0,
+                        isBlog: false
+                    }));
+                    
+                    if (homepageType === 'blog' || homepageType === 'both') {
+                        items.push({
+                            id: 'blog',
+                            title: 'Blog',
+                            slug: blogPath,
+                            is_homepage: false,
+                            show_in_nav: true,
+                            sort_order: blogSortOrder,
+                            isBlog: true
+                        });
+                    }
+                    
+                    items.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+                    
+                    const displayItems = items.map((item, idx) => ({...item, displayOrder: idx + 1}));
+                    
+                    if (displayItems.length === 0) {
                         list.innerHTML = '<p class="text-gray-400">No pages yet.</p>';
                     } else {
-                        // Sort by sort_order
-                        pages.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-                        
-                        list.innerHTML = pages.map((page, index) => `
+                        list.innerHTML = displayItems.map((page, index) => `
                             <div class="card p-4 rounded-lg flex items-center gap-3" data-page-id="${page.id}" data-sort-order="${page.sort_order || 0}">
                                 <div class="text-gray-500 font-mono text-sm w-6">${index + 1}</div>
                                 <div class="flex-1">
-                                    <h3 class="text-white font-medium">${escapeHtml(page.title)}</h3>
-                                    <p class="text-gray-400 text-sm">/${escapeHtml(page.slug)}${page.is_homepage ? ' (Homepage)' : ''}</p>
+                                    <h3 class="text-white font-medium">${page.isBlog ? '📰 ' : ''}${escapeHtml(page.title)}</h3>
+                                    <p class="text-gray-400 text-sm">${escapeHtml(page.slug)}${page.is_homepage ? ' (Homepage)' : ''}</p>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <button type="button" id="navbtn-${page.id}" class="px-3 py-1 rounded text-xs font-medium ${page.show_in_nav === false ? 'bg-gray-600' : 'bg-green-600'} text-white">
+                                    ${!page.isBlog ? `<button type="button" id="navbtn-${page.id}" class="px-3 py-1 rounded text-xs font-medium ${page.show_in_nav === false ? 'bg-gray-600' : 'bg-green-600'} text-white">
                                         ${page.show_in_nav === false ? 'Off' : 'On'}
                                     </button>
                                     <button type="button" onclick="doMove('${page.id}', -1)" class="p-2 text-gray-400 hover:text-white">↑</button>
                                     <button type="button" onclick="doMove('${page.id}', 1)" class="p-2 text-gray-400 hover:text-white">↓</button>
                                     <button onclick="editPage('${page.id}')" class="btn-secondary text-white px-3 py-1 rounded">Edit</button>
-                                    <button onclick="deletePage('${page.id}')" class="bg-red-600 text-white px-3 py-1 rounded">Delete</button>
+                                    <button onclick="deletePage('${page.id}')" class="bg-red-600 text-white px-3 py-1 rounded">Delete</button>` : `<button type="button" onclick="doMove('blog', -1)" class="p-2 text-gray-400 hover:text-white">↑</button>
+                                    <button type="button" onclick="doMove('blog', 1)" class="p-2 text-gray-400 hover:text-white">↓</button>`}
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                }
+            } catch (err) { console.error(err); }
+        }
                                 </div>
                             </div>
                         `).join('');
@@ -1312,8 +1355,75 @@
         
         async function doMove(pageId, direction) {
             if (!currentSite) { alert('No site selected'); return; }
+            
+            const isBlog = pageId === 'blog';
+            
+            if (isBlog) {
+                try {
+                    const [siteRes, pagesRes] = await Promise.all([
+                        fetch(API_BASE + '/api/sites/' + currentSite, {
+                            headers: { 'Authorization': 'Bearer ' + authToken }
+                        }),
+                        fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
+                            headers: { 'Authorization': 'Bearer ' + authToken }
+                        })
+                    ]);
+                    
+                    const site = await siteRes.json();
+                    const pages = await pagesRes.json();
+                    const blogSortOrder = site.blog_sort_order || 1;
+                    
+                    let items = pages.map(p => ({
+                        id: p.id,
+                        sort_order: p.sort_order || 0,
+                        isBlog: false
+                    }));
+                    
+                    const homepageType = site.homepage_type || 'both';
+                    if (homepageType === 'blog' || homepageType === 'both') {
+                        items.push({
+                            id: 'blog',
+                            sort_order: blogSortOrder,
+                            isBlog: true
+                        });
+                    }
+                    
+                    items.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+                    
+                    const currentIndex = items.findIndex(i => i.isBlog);
+                    const newIndex = currentIndex + direction;
+                    
+                    if (newIndex < 0 || newIndex >= items.length) return;
+                    
+                    // Move blog to new position
+                    const blogIndex = items.findIndex(i => i.isBlog);
+                    const [blogItem] = items.splice(blogIndex, 1);
+                    items.splice(newIndex, 0, blogItem);
+                    
+                    // Renumber all items
+                    for (let i = 0; i < items.length; i++) {
+                        if (items[i].isBlog) {
+                            await fetch(API_BASE + '/api/sites/' + currentSite, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                                body: JSON.stringify({ blog_sort_order: i + 1 })
+                            });
+                        } else {
+                            await fetch(API_BASE + '/api/sites/' + currentSite + '/pages/' + items[i].id, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                                body: JSON.stringify({ sort_order: i + 1 })
+                            });
+                        }
+                    }
+                    
+                    loadPages();
+                } catch (err) { console.error(err); }
+                return;
+            }
+            
+            // Handle regular page reordering
             try {
-                
                 const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/pages', {
                     headers: { 'Authorization': 'Bearer ' + authToken }
                 });

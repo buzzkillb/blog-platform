@@ -140,8 +140,9 @@ pub async fn build_site(
     .await?;
 
     // Build nav_links from pages with show_in_nav = true (excluding homepage which is always at /)
+    // Pages are already sorted by sort_order from the SQL query
     let nav_pages: Vec<_> = pages.iter().filter(|p| p.4 && !p.3).collect();
-    let nav_links: Vec<serde_json::Value> = nav_pages
+    let mut nav_links: Vec<serde_json::Value> = nav_pages
         .iter()
         .map(|p| {
             serde_json::json!({
@@ -150,6 +151,32 @@ pub async fn build_site(
             })
         })
         .collect();
+    
+    // Add blog link at the correct position based on blog_sort_order if homepage_type is "blog" or "both"
+    let homepage_type = site_row.get::<Option<String>, _>("homepage_type").unwrap_or_else(|| "both".to_string());
+    let blog_path = site_row.get::<Option<String>, _>("blog_path").unwrap_or_else(|| "/blog".to_string());
+    let blog_sort_order: i32 = site_row.get("blog_sort_order");
+    
+    if homepage_type == "blog" || homepage_type == "both" {
+        let blog_link = serde_json::json!({
+            "label": "Blog",
+            "url": blog_path
+        });
+        // Find first page with sort_order >= blog_sort_order - insert before it
+        let insert_pos = nav_links.iter().enumerate()
+            .find(|(_, link)| {
+                let url = link.get("url").and_then(|v| v.as_str()).unwrap_or("");
+                let page_sort = pages.iter()
+                    .find(|p| format!("/{}", p.1) == url)
+                    .map(|p| p.5)
+                    .unwrap_or(999);
+                page_sort >= blog_sort_order
+            })
+            .map(|(i, _)| i)
+            .unwrap_or(nav_links.len());
+        
+        nav_links.insert(insert_pos, blog_link);
+    }
 
     let mut env = Environment::new();
 
