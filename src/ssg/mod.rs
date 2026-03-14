@@ -48,7 +48,10 @@ fn make_context(
 ) -> Context {
     let mut ctx = Context::new();
     ctx.insert("site_name".into(), minijinja::Value::from(site_name));
-    ctx.insert("build_timestamp".into(), minijinja::Value::from(chrono::Utc::now().to_rfc3339()));
+    ctx.insert(
+        "build_timestamp".into(),
+        minijinja::Value::from(chrono::Utc::now().to_rfc3339()),
+    );
     ctx.insert(
         "site_description".into(),
         minijinja::Value::from_serialize(site_description),
@@ -104,14 +107,14 @@ pub async fn build_site(
         .bind(site_id)
         .fetch_all(db)
         .await?;
-    
+
     let page_slugs: Vec<String> = pages.iter().map(|p| p.0.clone()).collect();
-    
+
     // Get homepage_type to determine if blog should exist
     let homepage_type: Option<String> = site_row.get("homepage_type");
     let homepage_type = homepage_type.unwrap_or_else(|| "both".to_string());
     let blog_enabled = homepage_type == "blog" || homepage_type == "both";
-    
+
     // Clean up old output files - remove HTML files for deleted pages
     let output_dir = std::path::Path::new("output");
     if output_dir.exists() {
@@ -121,7 +124,7 @@ pub async fn build_site(
             keep_files.push("blog.html");
         }
         let keep_files: Vec<&str> = keep_files;
-        
+
         if let Ok(entries) = std::fs::read_dir(output_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
@@ -207,11 +210,18 @@ pub async fn build_site(
     if homepage_type == "blog" || homepage_type == "both" {
         let blog_url = blog_path
             .filter(|p| !p.is_empty())
-            .map(|p| if p.starts_with('/') { p } else { format!("/{}", p) })
+            .map(|p| {
+                if p.starts_with('/') {
+                    p
+                } else {
+                    format!("/{}", p)
+                }
+            })
             .unwrap_or_else(|| "/blog".to_string());
-        nav_links.push(serde_json::json!({"label": "Blog", "url": blog_url, "sort_order": blog_order}));
+        nav_links
+            .push(serde_json::json!({"label": "Blog", "url": blog_url, "sort_order": blog_order}));
     }
-    
+
     // Sort all nav links by sort_order (default to large number for pages without explicit order)
     nav_links.sort_by(|a, b| {
         let order_a = a.get("sort_order").and_then(|v| v.as_i64()).unwrap_or(100) as i32;
@@ -509,7 +519,7 @@ pub async fn build_site(
         let page_html = page_template.render(&page_ctx)?;
         std::fs::write(output_dir.join(format!("{}.html", page.1)), page_html)?;
     }
-    
+
     // Generate blog.html if blog is enabled but no blog page exists
     if blog_enabled && !page_slugs.contains(&"blog".to_string()) {
         let mut page_ctx = make_context(
@@ -528,8 +538,11 @@ pub async fn build_site(
         page_ctx.insert("slug".into(), minijinja::Value::from("blog".to_string()));
         page_ctx.insert("content".into(), minijinja::Value::from("".to_string()));
         page_ctx.insert("url".into(), minijinja::Value::from("/blog".to_string()));
-        page_ctx.insert("posts".into(), minijinja::Value::from_serialize(&posts_data));
-        
+        page_ctx.insert(
+            "posts".into(),
+            minijinja::Value::from_serialize(&posts_data),
+        );
+
         let page_template = env.get_template("page.html")?;
         let page_html = page_template.render(&page_ctx)?;
         std::fs::write(output_dir.join("blog.html"), page_html)?;
@@ -728,12 +741,15 @@ pub async fn deploy_to_cloudflare() -> Result<String, Box<dyn std::error::Error 
 
     let output_dir = std::path::Path::canonicalize(std::path::Path::new("output"))
         .map_err(|_| "Output directory does not exist")?;
-    
+
     if !output_dir.exists() {
         return Err("Output directory does not exist. Build the site first.".into());
     }
 
-    tracing::info!("Starting Cloudflare deployment using wrangler for project: {}", project_name);
+    tracing::info!(
+        "Starting Cloudflare deployment using wrangler for project: {}",
+        project_name
+    );
 
     // Run wrangler pages deploy
     let output = tokio::process::Command::new("npx")
@@ -746,7 +762,7 @@ pub async fn deploy_to_cloudflare() -> Result<String, Box<dyn std::error::Error 
             &project_name,
             "--branch",
             "main",
-            "--no-bundle"
+            "--no-bundle",
         ])
         .output()
         .await
@@ -756,7 +772,7 @@ pub async fn deploy_to_cloudflare() -> Result<String, Box<dyn std::error::Error 
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     tracing::info!("Wrangler output: {}", stdout);
-    
+
     if !output.status.success() {
         tracing::error!("Wrangler error: {}", stderr);
         return Err(format!("Wrangler deployment failed: {}", stderr).into());
