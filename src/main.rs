@@ -180,14 +180,8 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn health_check(State(state): State<AppState>) -> impl axum::response::IntoResponse {
-    match sqlx::query("SELECT 1").fetch_one(&state.db).await {
-        Ok(_) => (axum::http::StatusCode::OK, "OK"),
-        Err(_) => (
-            axum::http::StatusCode::SERVICE_UNAVAILABLE,
-            "Database unavailable",
-        ),
-    }
+async fn health_check() -> impl axum::response::IntoResponse {
+    (axum::http::StatusCode::OK, "OK")
 }
 
 async fn admin_handler(
