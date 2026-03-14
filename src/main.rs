@@ -184,10 +184,7 @@ async fn main() {
 }
 
 async fn health_check(State(state): State<AppState>) -> impl axum::response::IntoResponse {
-    match sqlx::query("SELECT 1")
-        .fetch_one(&state.db)
-        .await
-    {
+    match sqlx::query("SELECT 1").fetch_one(&state.db).await {
         Ok(_) => (StatusCode::OK, "OK"),
         Err(_) => (StatusCode::SERVICE_UNAVAILABLE, "Database unavailable"),
     }
