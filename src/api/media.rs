@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::api::auth::{require_auth, require_site_member};
 use crate::models::MediaRow;
+use crate::util;
 use crate::{ApiError, AppState, Media};
 
 pub async fn list(
@@ -112,6 +113,12 @@ pub async fn upload(
         .bytes()
         .await
         .map_err(|e| ApiError::new(format!("Failed to read file: {}", e)))?;
+
+    // Validate file content (magic bytes)
+    if let Err(e) = util::validate_file_content(&bytes, &filename) {
+        return Err(ApiError::new(format!("Invalid file: {}", e)));
+    }
+
     let file_path = media_dir.join(&safe_filename);
     std::fs::write(&file_path, &bytes)
         .map_err(|e| ApiError::new(format!("Failed to save file: {}", e)))?;

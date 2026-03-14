@@ -12,6 +12,41 @@ fn escape_html<S: AsRef<str>>(s: S) -> String {
         .replace('\'', "&#39;")
 }
 
+/// Validate and sanitize URL to prevent XSS attacks via javascript:, data:, etc.
+/// Returns None if URL is unsafe, otherwise returns the sanitized URL
+fn sanitize_url(url: &str) -> Option<String> {
+    let url = url.trim();
+    if url.is_empty() {
+        return None;
+    }
+
+    // Check for dangerous URL schemes
+    let lower = url.to_lowercase();
+    if lower.starts_with("javascript:")
+        || lower.starts_with("data:")
+        || lower.starts_with("vbscript:")
+        || lower.starts_with("file:")
+    {
+        return None;
+    }
+
+    // Only allow http, https, and relative URLs
+    if !lower.starts_with("http://")
+        && !lower.starts_with("https://")
+        && !lower.starts_with('/')
+        && !lower.starts_with("data:")
+    {
+        // Allow common relative paths
+        if !url.starts_with("..") && !url.contains("..") {
+            Some(url.to_string())
+        } else {
+            None
+        }
+    } else {
+        Some(url.to_string())
+    }
+}
+
 fn extract_first_image(content: &serde_json::Value) -> Option<String> {
     if let Some(blocks) = content.as_array() {
         for block in blocks {
@@ -576,7 +611,7 @@ fn render_blocks(content: &serde_json::Value) -> String {
                         format!("<p>{}</p>", text)
                     }
                     "image" => {
-                        let url = escape_html(block_content.and_then(|c| c.get("url")).and_then(|u| u.as_str()).unwrap_or(""));
+                        let url = sanitize_url(block_content.and_then(|c| c.get("url")).and_then(|u| u.as_str()).unwrap_or_default()).unwrap_or_default();
                         let alt = escape_html(block_content.and_then(|c| c.get("alt")).and_then(|a| a.as_str()).unwrap_or(""));
                         format!("<figure><img src=\"{}\" alt=\"{}\"><figcaption>{}</figcaption></figure>", url, alt, alt)
                     }
@@ -593,9 +628,9 @@ fn render_blocks(content: &serde_json::Value) -> String {
                     "hero" => {
                         let title = escape_html(block_content.and_then(|c| c.get("title")).and_then(|t| t.as_str()).unwrap_or(""));
                         let subtitle = escape_html(block_content.and_then(|c| c.get("subtitle")).and_then(|t| t.as_str()).unwrap_or(""));
-                        let bg = block_content.and_then(|c| c.get("backgroundImage")).and_then(|t| t.as_str()).unwrap_or("");
-                        let cta_text = block_content.and_then(|c| c.get("ctaText")).and_then(|t| t.as_str()).unwrap_or("");
-                        let cta_link = block_content.and_then(|c| c.get("ctaLink")).and_then(|t| t.as_str()).unwrap_or("#");
+                        let bg = sanitize_url(block_content.and_then(|c| c.get("backgroundImage")).and_then(|t| t.as_str()).unwrap_or_default()).unwrap_or_default();
+                        let cta_text = escape_html(block_content.and_then(|c| c.get("ctaText")).and_then(|t| t.as_str()).unwrap_or(""));
+                        let cta_link = sanitize_url(block_content.and_then(|c| c.get("ctaLink")).and_then(|t| t.as_str()).unwrap_or_default()).unwrap_or_else(|| "#".to_string());
                         let bg_style = if !bg.is_empty() {
                             format!("background-image: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('{}'); background-size: cover; background-position: center;", bg)
                         } else {
@@ -632,8 +667,8 @@ fn render_blocks(content: &serde_json::Value) -> String {
                     "columns" => {
                         let left = escape_html(block_content.and_then(|c| c.get("left")).and_then(|t| t.as_str()).unwrap_or(""));
                         let right = escape_html(block_content.and_then(|c| c.get("right")).and_then(|t| t.as_str()).unwrap_or(""));
-                        let left_img = block_content.and_then(|c| c.get("leftImage")).and_then(|t| t.as_str()).unwrap_or("");
-                        let right_img = block_content.and_then(|c| c.get("rightImage")).and_then(|t| t.as_str()).unwrap_or("");
+                        let left_img = sanitize_url(block_content.and_then(|c| c.get("leftImage")).and_then(|t| t.as_str()).unwrap_or("")).unwrap_or_default();
+                        let right_img = sanitize_url(block_content.and_then(|c| c.get("rightImage")).and_then(|t| t.as_str()).unwrap_or("")).unwrap_or_default();
                         format!(r#"<div class="columns-block" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin: 2rem 0;">
                             <div class="left-col">
                                 {} {}

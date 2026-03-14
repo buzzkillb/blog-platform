@@ -42,8 +42,10 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    dotenvy::dotenv().ok();
+
     let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://blog:changeme@localhost:5432/blog_platform".to_string());
+        .expect("DATABASE_URL must be set. See .env.example for configuration.");
 
     let db = match sqlx::postgres::PgPoolOptions::new()
         .max_connections(5)
