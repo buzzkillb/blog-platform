@@ -787,9 +787,8 @@ pub async fn deploy_to_cloudflare() -> Result<String, Box<dyn std::error::Error 
     );
 
     // Run wrangler pages deploy
-    let output = tokio::process::Command::new("npx")
+    let output = tokio::process::Command::new("wrangler")
         .args([
-            "wrangler",
             "pages",
             "deploy",
             output_dir.to_str().unwrap_or("output"),
