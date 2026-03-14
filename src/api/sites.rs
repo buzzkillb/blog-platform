@@ -291,18 +291,18 @@ pub async fn update(
             subdomain = COALESCE($4, subdomain),
             custom_domain = COALESCE($5, custom_domain),
             logo_url = COALESCE($6, logo_url), 
-            favicon_url = COALESCE($18, favicon_url),
-            theme = COALESCE($7, theme),
-            nav_links = COALESCE($8, nav_links),
-            footer_text = COALESCE($9, footer_text),
-            social_links = COALESCE($10, social_links),
-            contact_phone = COALESCE($11, contact_phone),
-            contact_email = COALESCE($12, contact_email),
-            contact_address = COALESCE($13, contact_address),
-            homepage_type = COALESCE($14, homepage_type),
-            blog_path = $15,
-            landing_blocks = COALESCE($16, landing_blocks),
-            settings = COALESCE($17, settings),
+            favicon_url = COALESCE($7, favicon_url),
+            theme = COALESCE($8, theme),
+            nav_links = COALESCE($9, nav_links),
+            footer_text = COALESCE($10, footer_text),
+            social_links = COALESCE($11, social_links),
+            contact_phone = COALESCE($12, contact_phone),
+            contact_email = COALESCE($13, contact_email),
+            contact_address = COALESCE($14, contact_address),
+            homepage_type = COALESCE($15, homepage_type),
+            blog_path = $16,
+            landing_blocks = COALESCE($17, landing_blocks),
+            settings = COALESCE($18, settings),
             blog_sort_order = $19
          WHERE id = $1 
          RETURNING id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at, blog_sort_order"
@@ -313,6 +313,7 @@ pub async fn update(
     .bind(subdomain)
     .bind(custom_domain)
     .bind(logo_url)
+    .bind(favicon_url)
     .bind(theme)
     .bind(nav_links)
     .bind(footer_text)
@@ -324,7 +325,6 @@ pub async fn update(
     .bind(blog_path)
     .bind(landing_blocks)
     .bind(settings)
-    .bind(favicon_url)
     .bind(blog_sort_order)
     .fetch_one(&state.db)
     .await
