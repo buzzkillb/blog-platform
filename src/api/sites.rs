@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::api::auth::{require_auth, require_site_member};
 use crate::models::ContactSubmissionRow;
+use crate::util;
 use crate::{ApiError, AppState, ContactSubmission, CreateSiteRequest, Site};
 
 pub async fn list(
@@ -18,7 +19,7 @@ pub async fn list(
     let current_user = require_auth(State(state.clone()), headers).await?;
 
     let rows = sqlx::query(
-        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at FROM sites WHERE id IN (SELECT site_id FROM site_members WHERE user_id = $1) ORDER BY created_at DESC"
+        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, blog_sort_order, landing_blocks, settings, created_at FROM sites WHERE id IN (SELECT site_id FROM site_members WHERE user_id = $1) ORDER BY created_at DESC"
     )
     .bind(current_user.user_id)
     .fetch_all(&state.db)
@@ -44,6 +45,7 @@ pub async fn list(
             contact_address: row.get("contact_address"),
             homepage_type: row.get("homepage_type"),
             blog_path: row.get("blog_path"),
+            blog_sort_order: row.get("blog_sort_order"),
             landing_blocks: row.get("landing_blocks"),
             settings: row.get("settings"),
             created_at: row.get("created_at"),
@@ -62,7 +64,7 @@ pub async fn get(
     require_site_member(&state, id, current_user.user_id).await?;
 
     let row = sqlx::query(
-        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at FROM sites WHERE id = $1"
+        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, blog_sort_order, landing_blocks, settings, created_at FROM sites WHERE id = $1"
     )
     .bind(id)
     .fetch_one(&state.db)
@@ -86,6 +88,7 @@ pub async fn get(
         contact_address: row.get("contact_address"),
         homepage_type: row.get("homepage_type"),
         blog_path: row.get("blog_path"),
+        blog_sort_order: row.get("blog_sort_order"),
         landing_blocks: row.get("landing_blocks"),
         settings: row.get("settings"),
         created_at: row.get("created_at"),
@@ -105,11 +108,27 @@ pub async fn create(
         return Err(ApiError::new("Site name is required"));
     }
 
+    // Validate URLs to prevent XSS
+    if let Some(url) = &payload.logo_url {
+        if !util::is_valid_url(url) {
+            return Err(ApiError::new(
+                "Invalid logo URL: javascript: and data: URLs are not allowed",
+            ));
+        }
+    }
+    if let Some(url) = &payload.favicon_url {
+        if !util::is_valid_url(url) {
+            return Err(ApiError::new(
+                "Invalid favicon URL: javascript: and data: URLs are not allowed",
+            ));
+        }
+    }
+
     let subdomain = payload.subdomain.filter(|s| !s.is_empty());
     let custom_domain = payload.custom_domain.filter(|s| !s.is_empty());
 
     let row = sqlx::query(
-        "INSERT INTO sites (subdomain, custom_domain, name, description, logo_url, favicon_url, homepage_type, nav_links, blog_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, landing_blocks, settings, created_at, blog_path"
+        "INSERT INTO sites (subdomain, custom_domain, name, description, logo_url, favicon_url, homepage_type, nav_links, blog_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, landing_blocks, settings, created_at, blog_path, blog_sort_order"
     )
     .bind(subdomain)
     .bind(custom_domain)
@@ -206,6 +225,7 @@ pub async fn create(
         contact_address: row.get("contact_address"),
         homepage_type: row.get("homepage_type"),
         blog_path: row.get("blog_path"),
+        blog_sort_order: row.get("blog_sort_order"),
         landing_blocks: row.get("landing_blocks"),
         settings: row.get("settings"),
         created_at: row.get("created_at"),
@@ -243,9 +263,26 @@ pub async fn update(
     let contact_address = payload.get("contact_address").and_then(|v| v.as_str());
     let homepage_type = payload.get("homepage_type").and_then(|v| v.as_str());
     let blog_path = payload.get("blog_path").and_then(|v| v.as_str());
+    let blog_sort_order = payload.get("blog_sort_order").and_then(|v| v.as_i64());
     let landing_blocks = payload.get("landing_blocks");
     let settings = payload.get("settings");
     let favicon_url = payload.get("favicon_url").and_then(|v| v.as_str());
+
+    // Validate URLs to prevent XSS
+    if let Some(url) = logo_url {
+        if !util::is_valid_url(url) {
+            return Err(ApiError::new(
+                "Invalid logo URL: javascript: and data: URLs are not allowed",
+            ));
+        }
+    }
+    if let Some(url) = favicon_url {
+        if !util::is_valid_url(url) {
+            return Err(ApiError::new(
+                "Invalid favicon URL: javascript: and data: URLs are not allowed",
+            ));
+        }
+    }
 
     let row = sqlx::query(
         "UPDATE sites SET 
@@ -254,20 +291,21 @@ pub async fn update(
             subdomain = COALESCE($4, subdomain),
             custom_domain = COALESCE($5, custom_domain),
             logo_url = COALESCE($6, logo_url), 
-            favicon_url = COALESCE($18, favicon_url),
-            theme = COALESCE($7, theme),
-            nav_links = COALESCE($8, nav_links),
-            footer_text = COALESCE($9, footer_text),
-            social_links = COALESCE($10, social_links),
-            contact_phone = COALESCE($11, contact_phone),
-            contact_email = COALESCE($12, contact_email),
-            contact_address = COALESCE($13, contact_address),
-            homepage_type = COALESCE($14, homepage_type),
-            blog_path = $15,
-            landing_blocks = COALESCE($16, landing_blocks),
-            settings = COALESCE($17, settings)
+            favicon_url = COALESCE($7, favicon_url),
+            theme = COALESCE($8, theme),
+            nav_links = COALESCE($9, nav_links),
+            footer_text = COALESCE($10, footer_text),
+            social_links = COALESCE($11, social_links),
+            contact_phone = COALESCE($12, contact_phone),
+            contact_email = COALESCE($13, contact_email),
+            contact_address = COALESCE($14, contact_address),
+            homepage_type = COALESCE($15, homepage_type),
+            blog_path = $16,
+            landing_blocks = COALESCE($17, landing_blocks),
+            settings = COALESCE($18, settings),
+            blog_sort_order = $19
          WHERE id = $1 
-         RETURNING id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at"
+         RETURNING id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at, blog_sort_order"
     )
     .bind(id)
     .bind(name)
@@ -275,6 +313,7 @@ pub async fn update(
     .bind(subdomain)
     .bind(custom_domain)
     .bind(logo_url)
+    .bind(favicon_url)
     .bind(theme)
     .bind(nav_links)
     .bind(footer_text)
@@ -286,7 +325,7 @@ pub async fn update(
     .bind(blog_path)
     .bind(landing_blocks)
     .bind(settings)
-    .bind(favicon_url)
+    .bind(blog_sort_order)
     .fetch_one(&state.db)
     .await
     .map_err(|_| ApiError::new("Site not found"))?;
@@ -308,6 +347,7 @@ pub async fn update(
         contact_address: row.get("contact_address"),
         homepage_type: row.get("homepage_type"),
         blog_path: row.get("blog_path"),
+        blog_sort_order: row.get("blog_sort_order"),
         landing_blocks: row.get("landing_blocks"),
         settings: row.get("settings"),
         created_at: row.get("created_at"),

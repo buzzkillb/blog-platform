@@ -5,7 +5,7 @@ Self-hosted, statically generated blog platform built with Rust (Axum).
 ## Features
 
 - Single-site: One blog per installation
-- Block-based editor with drag-drop reordering
+- Block-based editor with drag-drop reordering  
 - Static site generation (fast, secure)
 - Media management via MinIO (S3-compatible)
 - Contact forms with submissions
@@ -13,86 +13,101 @@ Self-hosted, statically generated blog platform built with Rust (Axum).
 - Configurable navigation and social links
 - SEO: JSON-LD schemas, sitemaps, RSS feeds
 - Dark-themed admin dashboard
-- Docker Compose + Traefik deployment
+- Deploy to Cloudflare Pages directly from admin
 
 ## Quick Start
 
-### Prerequisites
-- Docker & Docker Compose
+### Option 1: Local Development (No Docker)
 
-### Setup
+```bash
+# Clone and setup
+git clone https://github.com/buzzkillb/blog-platform.git
+cd blog-platform
+
+# Create .env (see .env.example for values)
+cp .env.example .env
+# Edit .env - minimum needed:
+#   - POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+#   - SESSION_SECRET=$(openssl rand -base64 32)
+
+# Start PostgreSQL (required)
+# e.g., via Homebrew: brew services start postgresql@16
+# Or Docker: docker run -d -e POSTGRES_PASSWORD=pass -p 5432:5432 postgres:16
+
+# Run
+cargo run
+```
+
+Access admin at http://localhost:3000/admin
+
+### Option 2: Docker Compose
 
 ```bash
 git clone https://github.com/buzzkillb/blog-platform.git
 cd blog-platform
-cp .env.example .env
-```
 
-Start services:
-```bash
+cp .env.example .env
+# Edit .env with your values
+
 docker-compose up -d
 ```
 
-Access admin: http://localhost:3000/admin
+Access admin at http://localhost:3000/admin
 
-### First-time Setup
+---
 
-1. Create your first site via the admin dashboard
-2. Add posts and pages
-3. Click "Publish" to generate static files
+## Cloudflare Pages Deployment
+
+To deploy directly from the admin dashboard:
+
+### 1. Create Pages Project
+
+Go to Cloudflare Dashboard → Workers & Pages → Create application → Direct upload
+
+Note your **project name** (e.g., `my-blog`)
+
+### 2. Get Account ID
+
+Cloudflare Dashboard → Overview → Copy Account ID from URL
+
+### 3. Create API Token (Least Privilege)
+
+1. Go to Cloudflare Dashboard → Profile → API Tokens
+2. Create Custom Token with:
+   - **Permissions**: `Account` → `Cloudflare Pages` → `Edit`
+3. Copy the token (shown once)
+
+### 4. Add to .env
+
+```
+CLOUDFLARE_ACCOUNT_ID=your-account-id
+CLOUDFLARE_API_TOKEN=your-api-token
+CLOUDFLARE_PAGES_PROJECT=your-project-name
+```
+
+### 5. Deploy
+
+In admin dashboard, click **Build Site** → **Deploy to Pages**
+
+Your site will deploy to `https://your-project.pages.dev` (add custom domain in Cloudflare dashboard)
+
+---
 
 ## Environment Variables
 
-### Required
+| Variable | Required | Description |
+|----------|----------|-------------|
+| DOMAIN | Production | Your domain (e.g., example.com) |
+| SESSION_SECRET | Yes | Random 32+ char string: `openssl rand -base64 32` |
+| DATABASE_URL | Yes | PostgreSQL connection string |
+| MINIO_* | Yes | S3-compatible storage |
+| CLOUDFLARE_* | For deploy | Pages deployment credentials |
 
-| Variable | Description |
-|----------|-------------|
-| DOMAIN | Your domain (e.g., yourdomain.com) |
-| CF_API_EMAIL | Cloudflare email |
-| CF_API_KEY | Cloudflare API key |
-| ACME_EMAIL | Email for Let's Encrypt |
-| SESSION_SECRET | Random 32+ character string |
+---
 
-Generate a session secret:
-```bash
-openssl rand -base64 32
-```
+## Production (Docker Compose + Traefik)
 
-### Database (defaults work for dev)
-
-| Variable | Default |
-|----------|---------|
-| POSTGRES_USER | blog |
-| POSTGRES_PASSWORD | changeme |
-| POSTGRES_DB | blog_platform |
-
-### MinIO (defaults work for dev)
-
-| Variable | Default |
-|----------|---------|
-| MINIO_ENDPOINT | minio:9000 |
-| MINIO_BUCKET | blog-media |
-| MINIO_ACCESS_KEY | minioadmin |
-| MINIO_SECRET_KEY | minioadmin |
-
-### App
-
-| Variable | Default |
-|----------|---------|
-| APP_HOST | 0.0.0.0 |
-| APP_PORT | 3000 |
-
-## Production
-
-1. Set required values in `.env`
-2. Point your domain A record to your server IP
+1. Edit `.env` with your domain and secrets
+2. Point your domain A record to server IP
 3. Run `docker-compose up -d`
 4. Traefik auto-configures HTTPS via Cloudflare DNS
-
-## Development
-
-```bash
-cargo run
-```
-
-Requires PostgreSQL running locally.

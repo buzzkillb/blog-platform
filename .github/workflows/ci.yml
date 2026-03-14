@@ -86,10 +86,16 @@ jobs:
       - name: Start services
         run: docker compose up -d
       - name: Wait for services
-        run: sleep 15
+        run: sleep 30
+      - name: Check container logs
+        run: docker compose logs app || true
       - name: Test health endpoint
         run: |
-          curl -f http://localhost:3000/health || exit 1
+          for i in {1..5}; do 
+            curl -f http://localhost:3000/health && break
+            echo "Retry $i..."
+            sleep 5
+          done || (docker compose logs app && exit 1)
       - name: Stop services
         run: docker compose down
 

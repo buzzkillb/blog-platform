@@ -12,6 +12,41 @@ fn escape_html<S: AsRef<str>>(s: S) -> String {
         .replace('\'', "&#39;")
 }
 
+/// Validate and sanitize URL to prevent XSS attacks via javascript:, data:, etc.
+/// Returns None if URL is unsafe, otherwise returns the sanitized URL
+fn sanitize_url(url: &str) -> Option<String> {
+    let url = url.trim();
+    if url.is_empty() {
+        return None;
+    }
+
+    // Check for dangerous URL schemes
+    let lower = url.to_lowercase();
+    if lower.starts_with("javascript:")
+        || lower.starts_with("data:")
+        || lower.starts_with("vbscript:")
+        || lower.starts_with("file:")
+    {
+        return None;
+    }
+
+    // Only allow http, https, and relative URLs
+    if !lower.starts_with("http://")
+        && !lower.starts_with("https://")
+        && !lower.starts_with('/')
+        && !lower.starts_with("data:")
+    {
+        // Allow common relative paths
+        if !url.starts_with("..") && !url.contains("..") {
+            Some(url.to_string())
+        } else {
+            None
+        }
+    } else {
+        Some(url.to_string())
+    }
+}
+
 fn extract_first_image(content: &serde_json::Value) -> Option<String> {
     if let Some(blocks) = content.as_array() {
         for block in blocks {
@@ -48,6 +83,10 @@ fn make_context(
 ) -> Context {
     let mut ctx = Context::new();
     ctx.insert("site_name".into(), minijinja::Value::from(site_name));
+    ctx.insert(
+        "build_timestamp".into(),
+        minijinja::Value::from(chrono::Utc::now().to_rfc3339()),
+    );
     ctx.insert(
         "site_description".into(),
         minijinja::Value::from_serialize(site_description),
@@ -92,11 +131,56 @@ pub async fn build_site(
     site_id: Uuid,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let site_row = sqlx::query(
-        "SELECT id, name, description, logo_url, favicon_url, footer_text, social_links, contact_phone, contact_email, contact_address, custom_domain FROM sites WHERE id = $1"
+        "SELECT id, name, description, logo_url, favicon_url, footer_text, social_links, contact_phone, contact_email, contact_address, custom_domain, homepage_type, blog_path, blog_sort_order FROM sites WHERE id = $1"
     )
     .bind(site_id)
     .fetch_one(db)
     .await?;
+
+    // Get current pages from DB to know what to keep
+    let pages: Vec<(String,)> = sqlx::query_as("SELECT slug FROM pages WHERE site_id = $1")
+        .bind(site_id)
+        .fetch_all(db)
+        .await?;
+
+    let page_slugs: Vec<String> = pages.iter().map(|p| p.0.clone()).collect();
+
+    // Get homepage_type to determine if blog should exist
+    let homepage_type: Option<String> = site_row.get("homepage_type");
+    let homepage_type = homepage_type.unwrap_or_else(|| "both".to_string());
+    let blog_enabled = homepage_type == "blog" || homepage_type == "both";
+
+    // Clean up old output files - remove HTML files for deleted pages
+    let output_dir = std::path::Path::new("output");
+    if output_dir.exists() {
+        // Keep these special files (blog.html only if blog is enabled)
+        let mut keep_files = vec!["index.html", "feed.xml", "sitemap.xml"];
+        if blog_enabled {
+            keep_files.push("blog.html");
+        }
+        let keep_files: Vec<&str> = keep_files;
+
+        if let Ok(entries) = std::fs::read_dir(output_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
+                        // Skip special files
+                        if keep_files.contains(&filename) || filename.starts_with("blog/") {
+                            continue;
+                        }
+                        // Remove .html files not in the page list
+                        if filename.ends_with(".html") {
+                            let slug = filename.trim_end_matches(".html");
+                            if !page_slugs.contains(&slug.to_string()) {
+                                let _ = std::fs::remove_file(&path);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     let site_id: Uuid = site_row.get("id");
     let site_name: String = site_row.get("name");
@@ -111,6 +195,9 @@ pub async fn build_site(
     let contact_email: Option<String> = site_row.get("contact_email");
     let contact_address: Option<String> = site_row.get("contact_address");
     let domain: Option<String> = site_row.get("custom_domain");
+    let homepage_type: Option<String> = site_row.get("homepage_type");
+    let blog_path: Option<String> = site_row.get("blog_path");
+    let blog_sort_order: Option<i32> = site_row.get("blog_sort_order");
 
     // Build site URL - use custom_domain as the primary domain
     let site_url = if let Some(d) = domain {
@@ -141,15 +228,41 @@ pub async fn build_site(
 
     // Build nav_links from pages with show_in_nav = true (excluding homepage which is always at /)
     let nav_pages: Vec<_> = pages.iter().filter(|p| p.4 && !p.3).collect();
-    let nav_links: Vec<serde_json::Value> = nav_pages
+    let mut nav_links: Vec<serde_json::Value> = nav_pages
         .iter()
         .map(|p| {
             serde_json::json!({
                 "label": p.0,
-                "url": format!("/{}", p.1)
+                "url": format!("/{}", p.1),
+                "sort_order": p.5
             })
         })
         .collect();
+
+    // Add Blog link if homepage_type is 'blog' or 'both'
+    let homepage_type = homepage_type.unwrap_or_else(|| "both".to_string());
+    let blog_order = blog_sort_order.unwrap_or(1);
+    if homepage_type == "blog" || homepage_type == "both" {
+        let blog_url = blog_path
+            .filter(|p| !p.is_empty())
+            .map(|p| {
+                if p.starts_with('/') {
+                    p
+                } else {
+                    format!("/{}", p)
+                }
+            })
+            .unwrap_or_else(|| "/blog".to_string());
+        nav_links
+            .push(serde_json::json!({"label": "Blog", "url": blog_url, "sort_order": blog_order}));
+    }
+
+    // Sort all nav links by sort_order (default to large number for pages without explicit order)
+    nav_links.sort_by(|a, b| {
+        let order_a = a.get("sort_order").and_then(|v| v.as_i64()).unwrap_or(100) as i32;
+        let order_b = b.get("sort_order").and_then(|v| v.as_i64()).unwrap_or(100) as i32;
+        order_a.cmp(&order_b)
+    });
 
     let mut env = Environment::new();
 
@@ -442,6 +555,34 @@ pub async fn build_site(
         std::fs::write(output_dir.join(format!("{}.html", page.1)), page_html)?;
     }
 
+    // Generate blog.html if blog is enabled but no blog page exists
+    if blog_enabled && !page_slugs.contains(&"blog".to_string()) {
+        let mut page_ctx = make_context(
+            &site_name,
+            &site_description,
+            &logo_url,
+            &favicon_url,
+            &nav_links,
+            &footer_text,
+            &social_links,
+            &contact_phone,
+            &contact_email,
+            &contact_address,
+        );
+        page_ctx.insert("title".into(), minijinja::Value::from("Blog".to_string()));
+        page_ctx.insert("slug".into(), minijinja::Value::from("blog".to_string()));
+        page_ctx.insert("content".into(), minijinja::Value::from("".to_string()));
+        page_ctx.insert("url".into(), minijinja::Value::from("/blog".to_string()));
+        page_ctx.insert(
+            "posts".into(),
+            minijinja::Value::from_serialize(&posts_data),
+        );
+
+        let page_template = env.get_template("page.html")?;
+        let page_html = page_template.render(&page_ctx)?;
+        std::fs::write(output_dir.join("blog.html"), page_html)?;
+    }
+
     // Write sitemap - already generated inline above
     std::fs::write(output_dir.join("sitemap.xml"), &sitemap_xml)?;
 
@@ -470,7 +611,7 @@ fn render_blocks(content: &serde_json::Value) -> String {
                         format!("<p>{}</p>", text)
                     }
                     "image" => {
-                        let url = escape_html(block_content.and_then(|c| c.get("url")).and_then(|u| u.as_str()).unwrap_or(""));
+                        let url = sanitize_url(block_content.and_then(|c| c.get("url")).and_then(|u| u.as_str()).unwrap_or_default()).unwrap_or_default();
                         let alt = escape_html(block_content.and_then(|c| c.get("alt")).and_then(|a| a.as_str()).unwrap_or(""));
                         format!("<figure><img src=\"{}\" alt=\"{}\"><figcaption>{}</figcaption></figure>", url, alt, alt)
                     }
@@ -487,9 +628,9 @@ fn render_blocks(content: &serde_json::Value) -> String {
                     "hero" => {
                         let title = escape_html(block_content.and_then(|c| c.get("title")).and_then(|t| t.as_str()).unwrap_or(""));
                         let subtitle = escape_html(block_content.and_then(|c| c.get("subtitle")).and_then(|t| t.as_str()).unwrap_or(""));
-                        let bg = block_content.and_then(|c| c.get("backgroundImage")).and_then(|t| t.as_str()).unwrap_or("");
-                        let cta_text = block_content.and_then(|c| c.get("ctaText")).and_then(|t| t.as_str()).unwrap_or("");
-                        let cta_link = block_content.and_then(|c| c.get("ctaLink")).and_then(|t| t.as_str()).unwrap_or("#");
+                        let bg = sanitize_url(block_content.and_then(|c| c.get("backgroundImage")).and_then(|t| t.as_str()).unwrap_or_default()).unwrap_or_default();
+                        let cta_text = escape_html(block_content.and_then(|c| c.get("ctaText")).and_then(|t| t.as_str()).unwrap_or(""));
+                        let cta_link = sanitize_url(block_content.and_then(|c| c.get("ctaLink")).and_then(|t| t.as_str()).unwrap_or_default()).unwrap_or_else(|| "#".to_string());
                         let bg_style = if !bg.is_empty() {
                             format!("background-image: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('{}'); background-size: cover; background-position: center;", bg)
                         } else {
@@ -526,8 +667,8 @@ fn render_blocks(content: &serde_json::Value) -> String {
                     "columns" => {
                         let left = escape_html(block_content.and_then(|c| c.get("left")).and_then(|t| t.as_str()).unwrap_or(""));
                         let right = escape_html(block_content.and_then(|c| c.get("right")).and_then(|t| t.as_str()).unwrap_or(""));
-                        let left_img = block_content.and_then(|c| c.get("leftImage")).and_then(|t| t.as_str()).unwrap_or("");
-                        let right_img = block_content.and_then(|c| c.get("rightImage")).and_then(|t| t.as_str()).unwrap_or("");
+                        let left_img = sanitize_url(block_content.and_then(|c| c.get("leftImage")).and_then(|t| t.as_str()).unwrap_or("")).unwrap_or_default();
+                        let right_img = sanitize_url(block_content.and_then(|c| c.get("rightImage")).and_then(|t| t.as_str()).unwrap_or("")).unwrap_or_default();
                         format!(r#"<div class="columns-block" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin: 2rem 0;">
                             <div class="left-col">
                                 {} {}
@@ -627,4 +768,56 @@ fn extract_plain_text(content: &serde_json::Value) -> String {
     } else {
         String::new()
     }
+}
+
+pub async fn deploy_to_cloudflare() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let project_name = std::env::var("CLOUDFLARE_PAGES_PROJECT")
+        .map_err(|_| "CLOUDFLARE_PAGES_PROJECT not set")?;
+
+    let output_dir = std::path::Path::canonicalize(std::path::Path::new("output"))
+        .map_err(|_| "Output directory does not exist")?;
+
+    if !output_dir.exists() {
+        return Err("Output directory does not exist. Build the site first.".into());
+    }
+
+    tracing::info!(
+        "Starting Cloudflare deployment using wrangler for project: {}",
+        project_name
+    );
+
+    // Run wrangler pages deploy
+    let output = tokio::process::Command::new("wrangler")
+        .args([
+            "pages",
+            "deploy",
+            output_dir.to_str().unwrap_or("output"),
+            "--project-name",
+            &project_name,
+            "--branch",
+            "main",
+            "--no-bundle",
+        ])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run wrangler: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    tracing::info!("Wrangler output: {}", stdout);
+
+    if !output.status.success() {
+        tracing::error!("Wrangler error: {}", stderr);
+        return Err(format!("Wrangler deployment failed: {}", stderr).into());
+    }
+
+    // Try to extract the URL from wrangler output
+    let deployment_url = stdout
+        .lines()
+        .find(|l| l.contains("pages.dev"))
+        .map(|l| l.trim().to_string())
+        .unwrap_or_else(|| format!("https://{}.pages.dev", project_name));
+
+    Ok(format!("Deployed successfully! Visit: {}", deployment_url))
 }

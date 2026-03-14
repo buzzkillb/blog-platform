@@ -71,6 +71,11 @@ services:
       - APP_PORT=${APP_PORT}
       - RUST_LOG=${RUST_LOG}
       - SESSION_SECRET=${SESSION_SECRET}
+      - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+      - CLOUDFLARE_PAGES_PROJECT=${CLOUDFLARE_PAGES_PROJECT}
+    volumes:
+      - wrangler_cache:/app/.wrangler
     depends_on:
       postgres:
         condition: service_healthy
@@ -95,3 +100,4 @@ volumes:
   postgres_data:
   minio_data:
   traefik_certs:
+  wrangler_cache:

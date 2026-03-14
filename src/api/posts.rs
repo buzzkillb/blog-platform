@@ -8,9 +8,9 @@ use uuid::Uuid;
 
 use crate::api::auth::{require_auth, require_site_member};
 use crate::models::PostRow;
-use crate::{
-    ssg, util::generate_slug, ApiError, AppState, CreatePostRequest, Post, UpdatePostRequest,
-};
+use crate::util;
+use crate::util::generate_slug;
+use crate::{ssg, ApiError, AppState, CreatePostRequest, Post, UpdatePostRequest};
 
 pub async fn list(
     State(state): State<AppState>,
@@ -99,6 +99,15 @@ pub async fn create(
         return Err(ApiError::new("Title is required"));
     }
 
+    // Validate featured_image URL
+    if let Some(ref url) = payload.featured_image {
+        if !util::is_valid_url(url) {
+            return Err(ApiError::new(
+                "Invalid featured image URL: javascript: and data: URLs are not allowed",
+            ));
+        }
+    }
+
     let slug = payload
         .slug
         .unwrap_or_else(|| generate_slug(&payload.title));
@@ -150,6 +159,15 @@ pub async fn update(
 ) -> Result<Json<Post>, ApiError> {
     let current_user = require_auth(State(state.clone()), headers).await?;
     require_site_member(&state, site_id, current_user.user_id).await?;
+
+    // Validate featured_image URL
+    if let Some(ref url) = payload.featured_image {
+        if !util::is_valid_url(url) {
+            return Err(ApiError::new(
+                "Invalid featured image URL: javascript: and data: URLs are not allowed",
+            ));
+        }
+    }
 
     let title = payload.title.clone();
     let content = payload.content.clone();

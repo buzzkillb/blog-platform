@@ -28,3 +28,6 @@ output/
 # Database
 *.sqlite
 *.db
+
+# Wrangler cache (contains credentials)
+.wrangler/

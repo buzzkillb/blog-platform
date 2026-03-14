@@ -32,6 +32,8 @@ pub struct ContactFormRequest {
 
 #[tokio::main]
 async fn main() {
+    dotenvy::dotenv().ok();
+
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -40,8 +42,10 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    dotenvy::dotenv().ok();
+
     let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://blog:changeme@localhost:5432/blog_platform".to_string());
+        .expect("DATABASE_URL must be set. See .env.example for configuration.");
 
     let db = match sqlx::postgres::PgPoolOptions::new()
         .max_connections(5)
@@ -92,6 +96,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(health_check))
+        .with_state(state.clone())
         .route("/admin", get(admin_handler))
         .route("/admin/{*path}", get(admin_handler))
         .route(
@@ -180,11 +185,8 @@ async fn main() {
 
 async fn health_check(State(state): State<AppState>) -> impl axum::response::IntoResponse {
     match sqlx::query("SELECT 1").fetch_one(&state.db).await {
-        Ok(_) => (axum::http::StatusCode::OK, "OK"),
-        Err(_) => (
-            axum::http::StatusCode::SERVICE_UNAVAILABLE,
-            "Database unavailable",
-        ),
+        Ok(_) => (StatusCode::OK, "OK"),
+        Err(_) => (StatusCode::SERVICE_UNAVAILABLE, "Database unavailable"),
     }
 }
 
@@ -234,6 +236,11 @@ async fn run_migrations(db: &sqlx::PgPool) {
     .expect("Failed to create sites table");
 
     sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS favicon_url VARCHAR(1000)")
+        .execute(db)
+        .await
+        .ok();
+
+    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS blog_sort_order INTEGER DEFAULT 1")
         .execute(db)
         .await
         .ok();
@@ -386,6 +393,24 @@ async fn run_migrations(db: &sqlx::PgPool) {
         .execute(db)
         .await
         .ok();
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_posts_slug ON posts(site_id, slug)")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_pages_slug ON pages(site_id, slug)")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_site_members_user ON site_members(user_id)")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_contact_submissions_site_created ON contact_submissions(site_id, created_at DESC)",
+    )
+    .execute(db)
+    .await
+    .ok();
 }
 
 async fn seed_default_pages(db: &sqlx::PgPool) {
