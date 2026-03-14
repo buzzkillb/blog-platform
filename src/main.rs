@@ -96,6 +96,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(health_check))
+        .with_state(state.clone())
         .route("/admin", get(admin_handler))
         .route("/admin/{*path}", get(admin_handler))
         .route(
@@ -182,8 +183,14 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn health_check() -> impl axum::response::IntoResponse {
-    (axum::http::StatusCode::OK, "OK")
+async fn health_check(State(state): State<AppState>) -> impl axum::response::IntoResponse {
+    match sqlx::query("SELECT 1")
+        .fetch_one(&state.db)
+        .await
+    {
+        Ok(_) => (StatusCode::OK, "OK"),
+        Err(_) => (StatusCode::SERVICE_UNAVAILABLE, "Database unavailable"),
+    }
 }
 
 async fn admin_handler(
