@@ -115,7 +115,7 @@ pub async fn upload(
         .map_err(|e| ApiError::new(format!("Failed to read file: {}", e)))?;
 
     // Validate file content (magic bytes)
-    if let Err(e) = util::validate_file_content(&bytes, &filename) {
+    if let Err(e) = util::validate_file_content(&bytes, filename) {
         return Err(ApiError::new(format!("Invalid file: {}", e)));
     }
 

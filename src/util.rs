@@ -26,14 +26,9 @@ pub fn is_valid_url(url: &str) -> bool {
     }
 
     // Allow http, https, or relative URLs
-    if lower.starts_with("http://")
+    lower.starts_with("http://")
         || lower.starts_with("https://")
         || (!url.contains("://") && !url.starts_with("javascript"))
-    {
-        true
-    } else {
-        false
-    }
 }
 
 pub fn validate_file_content(content: &[u8], filename: &str) -> Result<(), String> {
@@ -62,10 +57,8 @@ pub fn validate_file_content(content: &[u8], filename: &str) -> Result<(), Strin
         if content.len() < 12 || &content[0..4] != b"RIFF" || &content[8..12] != b"WEBP" {
             return Err("Invalid WebP file".to_string());
         }
-    } else if lower.ends_with(".pdf") {
-        if content.len() < 5 || &content[0..5] != b"%PDF-" {
-            return Err("Invalid PDF file".to_string());
-        }
+    } else if lower.ends_with(".pdf") && (content.len() < 5 || &content[0..5] != b"%PDF-") {
+        return Err("Invalid PDF file".to_string());
     }
 
     Ok(())
