@@ -2,6 +2,94 @@ use minijinja::Environment;
 use sqlx::Row;
 use uuid::Uuid;
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DbTemplate {
+    pub id: Uuid,
+    pub name: String,
+    pub html_content: Option<String>,
+    pub css_content: Option<String>,
+    pub default_config: serde_json::Value,
+}
+
+pub async fn load_template_by_id(
+    db: &sqlx::PgPool,
+    template_id: Uuid,
+) -> Result<DbTemplate, Box<dyn std::error::Error + Send + Sync>> {
+    let row = sqlx::query(
+        "SELECT id, name, html_content, css_content, default_config FROM templates WHERE id = $1"
+    )
+    .bind(template_id)
+    .fetch_one(db)
+    .await?;
+
+    Ok(DbTemplate {
+        id: row.get("id"),
+        name: row.get("name"),
+        html_content: row.get("html_content"),
+        css_content: row.get("css_content"),
+        default_config: row.get("default_config"),
+    })
+}
+
+fn merge_configs(default_config: &serde_json::Value, site_config: &serde_json::Value) -> serde_json::Value {
+    let mut merged = default_config.clone();
+    
+    if let (Some(def_obj), Some(site_obj)) = (merged.as_object(), site_config.as_object()) {
+        let mut new_merged = def_obj.clone();
+        for (key, value) in site_obj {
+            new_merged.insert(key.clone(), value.clone());
+        }
+        merged = serde_json::Value::Object(new_merged);
+    } else if site_config != &serde_json::Value::Null {
+        merged = site_config.clone();
+    }
+    
+    merged
+}
+
+fn get_theme_css(config: &serde_json::Value, theme: &str) -> String {
+    let mut css_vars = String::new();
+    
+    let theme_data = if theme == "dark" {
+        config.get("dark").or_else(|| config.get("colors"))
+    } else {
+        config.get("light").or_else(|| config.get("colors"))
+    };
+    
+    if let Some(colors) = theme_data {
+        if let Some(obj) = colors.as_object() {
+            for (key, value) in obj {
+                if let Some(color) = value.as_str() {
+                    css_vars.push_str(&format!("  --{}: {};\n", key, color));
+                }
+            }
+        }
+    }
+    
+    if let Some(fonts) = config.get("fonts") {
+        if let Some(obj) = fonts.as_object() {
+            for (key, value) in obj {
+                if let Some(font) = value.as_str() {
+                    css_vars.push_str(&format!("  --font-{}: {};\n", key, font));
+                }
+            }
+        }
+    }
+    
+    css_vars
+}
+
+fn inject_theme_vars(html: &str, css_vars: &str, theme: &str) -> String {
+    let theme_attr = format!("data-theme=\"{}\"", theme);
+    let style_block = format!(
+        "<style>\n:root {{\n{}}}\n</style>",
+        css_vars
+    );
+    
+    html.replace("<html", &format!("<html {}", theme_attr))
+        .replace("<head>", &format!("<head>\n{}", style_block))
+}
+
 /// Escape HTML special characters to prevent XSS attacks
 fn escape_html<S: AsRef<str>>(s: S) -> String {
     let s = s.as_ref();
@@ -45,6 +133,8 @@ fn make_context(
     contact_phone: &Option<String>,
     contact_email: &Option<String>,
     contact_address: &Option<String>,
+    theme: &str,
+    template_config: &serde_json::Value,
 ) -> Context {
     let mut ctx = Context::new();
     ctx.insert("site_name".into(), minijinja::Value::from(site_name));
@@ -84,6 +174,11 @@ fn make_context(
         "contact_address".into(),
         minijinja::Value::from_serialize(contact_address),
     );
+    ctx.insert("theme".into(), minijinja::Value::from(theme));
+    ctx.insert(
+        "template_config".into(),
+        minijinja::Value::from_serialize(template_config),
+    );
     ctx
 }
 
@@ -114,6 +209,11 @@ pub async fn build_site(
     let homepage_type: Option<String> = site_row.get("homepage_type");
     let blog_path: Option<String> = site_row.get("blog_path");
     let blog_sort_order: i32 = site_row.get("blog_sort_order");
+    let theme: String = site_row.get("theme");
+    let template_id: Option<Uuid> = site_row.get("template_id");
+    let template_config: serde_json::Value = site_row
+        .get::<Option<serde_json::Value>, _>("template_config")
+        .unwrap_or(serde_json::json!({}));
     let homepage_type = homepage_type.unwrap_or_else(|| "both".to_string());
     let blog_path = blog_path.unwrap_or_else(|| "/blog".to_string());
 
@@ -159,8 +259,8 @@ pub async fn build_site(
     }
 
     // Add other pages sorted by sort_order
-    let other_pages: Vec<_> = pages.iter().filter(|p| !p.3).collect();
-    for page in other_pages {
+    let other_pages: Vec<(String, String, serde_json::Value, bool, bool, i32)> = pages.iter().filter(|p| !p.3).map(|p| (p.0.clone(), p.1.clone(), p.2.clone(), p.3, p.4, p.5)).collect();
+    for page in &other_pages {
         if page.4 {
             nav_links.push(serde_json::json!({
                 "label": page.0,
@@ -183,22 +283,79 @@ pub async fn build_site(
     }
 
     let mut env = Environment::new();
+    let mut combined_css = String::new();
+    let mut template_base: Option<String> = None;
+    let mut template_page: Option<String> = None;
+    let mut template_index: Option<String> = None;
 
-    // Find templates directory
-    let cwd = std::env::current_dir().unwrap_or_default();
-    let template_dir = cwd.join("templates");
+    if let Some(tid) = template_id {
+        match load_template_by_id(db, tid).await {
+            Ok(db_template) => {
+                let merged_config = merge_configs(&db_template.default_config, &template_config);
+                let theme_css = get_theme_css(&merged_config, &theme);
+                combined_css = theme_css;
 
-    let base_html = std::fs::read_to_string(template_dir.join("base.html"))
-        .map_err(|e| format!("Failed to read base.html: {}", e))?;
-    let page_html = std::fs::read_to_string(template_dir.join("page.html"))
-        .map_err(|e| format!("Failed to read page.html: {}", e))?;
-    let index_html = std::fs::read_to_string(template_dir.join("index.html"))
-        .map_err(|e| format!("Failed to read index.html: {}", e))?;
+                if let Some(html_content) = db_template.html_content {
+                    for template_part in html_content.split("<!--TEMPLATE:").skip(1) {
+                        if let Some((name, rest)) = template_part.split_once("-->") {
+                            let name = name.trim();
+                            if let Some((content, _)) = rest.split_once("<!--END_TEMPLATE-->") {
+                                let content = content.trim();
+                                
+                                let processed = inject_theme_vars(content, &combined_css, &theme);
+                                
+                                match name {
+                                    "base.html" => {
+                                        template_base = Some(processed.clone());
+                                        template_page = Some(processed.clone());
+                                        template_index = Some(processed);
+                                    }
+                                    "page.html" => {
+                                        template_page = Some(processed.clone());
+                                    }
+                                    "index.html" => {
+                                        template_index = Some(processed);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                }
 
-    // Load templates
-    env.add_template("base.html", &base_html)?;
-    env.add_template("page.html", &page_html)?;
-    env.add_template("index.html", &index_html)?;
+                if let Some(css) = db_template.css_content {
+                    combined_css = format!("{}\n{}", combined_css, css);
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Failed to load template {}: {}, falling back to file templates", tid, e);
+            }
+        }
+    }
+
+    // Load file-based templates if no database templates
+    if template_base.is_none() {
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let template_dir = cwd.join("templates");
+
+        template_base = Some(std::fs::read_to_string(template_dir.join("base.html"))
+            .map_err(|e| format!("Failed to read base.html: {}", e))?);
+        template_page = Some(std::fs::read_to_string(template_dir.join("page.html"))
+            .map_err(|e| format!("Failed to read page.html: {}", e))?);
+        template_index = Some(std::fs::read_to_string(template_dir.join("index.html"))
+            .map_err(|e| format!("Failed to read index.html: {}", e))?);
+    }
+
+    // Add templates to environment (they now live long enough)
+    if let Some(ref t) = template_base {
+        env.add_template("base.html", t)?;
+    }
+    if let Some(ref t) = template_page {
+        env.add_template("page.html", t)?;
+    }
+    if let Some(ref t) = template_index {
+        env.add_template("index.html", t)?;
+    }
 
     // Get non-homepage pages for sitemap (exclude 'blog' since it's handled specially)
     let sitemap_pages: Vec<String> = pages
@@ -312,7 +469,7 @@ pub async fn build_site(
         .collect();
 
     let homepage = pages.iter().find(|p| p.3);
-    let other_pages: Vec<_> = pages.iter().filter(|p| !p.3).collect();
+    let other_pages: Vec<(String, String, serde_json::Value, bool, bool, i32)> = pages.iter().filter(|p| !p.3).map(|p| (p.0.clone(), p.1.clone(), p.2.clone(), p.3, p.4, p.5)).collect();
 
     let output_dir = std::path::Path::new("output");
     std::fs::create_dir_all(output_dir)?;
@@ -329,6 +486,8 @@ pub async fn build_site(
         &contact_phone,
         &contact_email,
         &contact_address,
+        &theme,
+        &template_config,
     );
     ctx.insert(
         "posts".into(),
@@ -357,6 +516,8 @@ pub async fn build_site(
             &contact_phone,
             &contact_email,
             &contact_address,
+            &theme,
+            &template_config,
         );
         post_ctx.insert("title".into(), minijinja::Value::from(post.0.clone()));
         post_ctx.insert("slug".into(), minijinja::Value::from(post.1.clone()));
@@ -402,6 +563,8 @@ pub async fn build_site(
             &contact_phone,
             &contact_email,
             &contact_address,
+            &theme,
+            &template_config,
         );
         page_ctx.insert("title".into(), minijinja::Value::from(home.0.clone()));
         page_ctx.insert("slug".into(), minijinja::Value::from(home.1.clone()));
@@ -429,6 +592,8 @@ pub async fn build_site(
             &contact_phone,
             &contact_email,
             &contact_address,
+            &theme,
+            &template_config,
         );
         page_ctx.insert("title".into(), minijinja::Value::from(page.0.clone()));
         page_ctx.insert("slug".into(), minijinja::Value::from(page.1.clone()));
