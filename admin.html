@@ -6,13 +6,6 @@
     <title>Blog Platform Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
     <style>
         body { background-color: #0d1117; color: #c9d1d9; }
         .card { background-color: #161b22; border: 1px solid #30363d; }
@@ -533,9 +526,6 @@
                                 <button onclick="switchView('settings')" class="w-full text-left px-4 py-2 rounded ${currentView==='settings'?'bg-gray-700 text-white':'text-gray-400 hover:bg-gray-700'}">
                                     <i class="fas fa-cog w-6"></i> Settings
                                 </button>
-                                <button onclick="switchView('templates')" class="w-full text-left px-4 py-2 rounded ${currentView==='templates'?'bg-gray-700 text-white':'text-gray-400 hover:bg-gray-700'}">
-                                    <i class="fas fa-palette w-6"></i> Templates
-                                </button>
                                 <button onclick="switchView('posts')" class="w-full text-left px-4 py-2 rounded ${currentView==='posts'?'bg-gray-700 text-white':'text-gray-400 hover:bg-gray-700'}">
                                     <i class="fas fa-file-text w-6"></i> Posts
                                 </button>
@@ -548,10 +538,13 @@
                                 <button onclick="switchView('contact')" class="w-full text-left px-4 py-2 rounded ${currentView==='contact'?'bg-gray-700 text-white':'text-gray-400 hover:bg-gray-700'}">
                                     <i class="fas fa-envelope w-6"></i> Contact
                                 </button>
+                                <button onclick="switchView('templates')" class="w-full text-left px-4 py-2 rounded ${currentView==='templates'?'bg-gray-700 text-white':'text-gray-400 hover:bg-gray-700'}">
+                                    <i class="fas fa-palette w-6"></i> Templates
+                                </button>
                             </nav>
                         </aside>
                         <main class="flex-1 p-6">
-                            ${currentView==='settings'?renderSettings():currentView==='sites'?renderSitesInDashboard():currentView==='posts'?renderPosts():currentView==='pages'?renderPages():currentView==='media'?renderMedia():currentView==='templates'?renderTemplateSelector():renderContact()}
+                            ${currentView==='settings'?renderSettings():currentView==='sites'?renderSitesInDashboard():currentView==='posts'?renderPosts():currentView==='pages'?renderPages():currentView==='media'?renderMedia():currentView==='templates'?renderTemplates():renderContact()}
                         </main>
                     </div>
                 </div>
@@ -569,8 +562,8 @@
             else if (currentView === 'posts') loadPosts();
             else if (currentView === 'pages') loadPages();
             else if (currentView === 'media') loadMedia();
-            else if (currentView === 'templates') loadTemplates();
             else if (currentView === 'contact') loadContact();
+            else if (currentView === 'templates') loadTemplates();
         }
 
         // POSTS
@@ -2082,882 +2075,86 @@
             } catch (err) { console.error(err); }
         }
 
-        // TEMPLATES
+        // ==================== TEMPLATES ====================
         let currentTemplateTab = 'select';
-        let templateEditor = null;
-        let templateCodeState = { html: '', css: '', js: '' };
-        let templateOriginalCode = { html: '', css: '', js: '' };
-        let currentCodeTab = 'html';
-        let templatesList = [];
-        let selectedTemplate = null;
-        let templateConfig = { colors: {}, typography: {}, hero: {}, layout: {}, advanced: {} };
-        let customizerDebounceTimer = null;
-
-        function renderTemplateSelector() {
+        
+        function renderTemplates() {
             return `
-                <div>
-                    <h1 class="text-2xl font-bold text-white mb-6">Templates</h1>
-                    <div class="flex gap-4 mb-6">
-                        ${renderTemplateTabs()}
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h1 class="text-2xl font-bold text-white">Templates</h1>
                     </div>
-                    <div id="template-content">
-                        ${renderTemplateSelectorView()}
+                    <div class="flex gap-4 border-b border-gray-700">
+                        <button onclick="switchTemplateTab('select')" class="px-4 py-2 ${currentTemplateTab==='select'?'text-white border-b-2 border-green-500':'text-gray-400'}">Select</button>
+                        <button onclick="switchTemplateTab('customize')" class="px-4 py-2 ${currentTemplateTab==='customize'?'text-white border-b-2 border-green-500':'text-gray-400'}">Customize</button>
+                        <button onclick="switchTemplateTab('code')" class="px-4 py-2 ${currentTemplateTab==='code'?'text-white border-b-2 border-green-500':'text-gray-400'}">Code</button>
                     </div>
-                    ${renderTemplatePreviewModal()}
+                    ${currentTemplateTab==='select'?renderTemplateSelect():currentTemplateTab==='customize'?renderTemplateCustomize():renderTemplateCode()}
                 </div>
+                <div id="template-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"></div>
             `;
         }
 
-        function renderTemplateTabs() {
-            const tabs = [
-                { id: 'select', label: 'Select', icon: 'fa-th' },
-                { id: 'visual', label: 'Visual', icon: 'fa-paint-brush' },
-                { id: 'customize', label: 'Customize', icon: 'fa-cogs' },
-                { id: 'code', label: 'Code', icon: 'fa-code' }
-            ];
-            return tabs.map(tab => `
-                <button onclick="switchTemplateTab('${tab.id}')" 
-                    class="px-4 py-2 rounded ${currentTemplateTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}">
-                    <i class="fas ${tab.icon} w-4"></i> ${tab.label}
-                </button>
-            `).join('');
-        }
-
-        function switchTemplateTab(tabId) {
-            currentTemplateTab = tabId;
+        function switchTemplateTab(tab) {
+            currentTemplateTab = tab;
             render();
         }
 
-        function renderTemplateSelectorView() {
-            if (currentTemplateTab === 'select') {
-                return `
-                    <div id="templates-grid" class="grid grid-cols-3 gap-6"></div>
-                `;
-            } else if (currentTemplateTab === 'visual') {
-                return renderTemplateCustomizeView();
-            } else if (currentTemplateTab === 'customize') {
-                return `
-                    <div class="card p-6 rounded-lg">
-                        <h2 class="text-xl font-bold text-white mb-4">Customize Template</h2>
-                        <p class="text-gray-400">Template customization options will appear here.</p>
-                    </div>
-                `;
-            } else if (currentTemplateTab === 'code') {
-                return renderTemplateCodeView();
-            }
-            return '';
+        function renderTemplateSelect() {
+            return '<div id="templates-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6"><p class="text-gray-400">Loading templates...</p></div>';
         }
 
-        function renderTemplatePreviewModal() {
-            return `
-                <div id="template-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div class="bg-gray-800 rounded-lg w-4/5 h-4/5 flex flex-col">
-                        <div class="flex justify-between items-center p-4 border-b border-gray-700">
-                            <h3 class="text-white font-bold" id="modal-template-name">Template Preview</h3>
-                            <button onclick="closeTemplateModal()" class="text-gray-400 hover:text-white text-xl">&times;</button>
-                        </div>
-                        <div class="flex-1 p-4">
-                            <iframe id="template-preview-frame" class="w-full h-full bg-white rounded" src=""></iframe>
-                        </div>
-                        <div class="flex justify-end gap-2 p-4 border-t border-gray-700">
-                            <button onclick="closeTemplateModal()" class="btn-secondary text-white px-4 py-2 rounded">Close</button>
-                            <button onclick="activateTemplateFromModal()" class="btn-primary text-white px-4 py-2 rounded">Activate</button>
-                        </div>
-                    </div>
-                </div>
-            `;
+        function renderTemplateCustomize() {
+            return '<div class="p-4 text-gray-400">Customize options coming soon</div>';
+        }
+
+        function renderTemplateCode() {
+            return '<div class="p-4 text-gray-400">Code editor coming soon</div>';
         }
 
         async function loadTemplates() {
-            if (!currentSite) return;
-            if (currentTemplateTab === 'visual') {
-                await loadTemplateCustomizeSettings();
-                return;
-            }
-            if (currentTemplateTab === 'code') {
-                await loadTemplateCode();
-                return;
-            }
+            const grid = document.getElementById('templates-grid');
+            if (!grid) return;
             try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite, {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                const site = res.ok ? await res.json() : {};
-                const currentTemplateId = site.template_id || 'default';
-
-                const templatesRes = await fetch(API_BASE + '/api/templates', {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                
-                if (templatesRes.ok) {
-                    templatesList = await templatesRes.json();
-                } else {
-                    templatesList = [
-                        { id: 'default', name: 'Default', description: 'Clean minimalist blog theme', thumbnail: '' },
-                        { id: 'modern', name: 'Modern', description: 'Sleek modern design with bold typography', thumbnail: '' },
-                        { id: 'classic', name: 'Classic', description: 'Traditional blog layout', thumbnail: '' },
-                        { id: 'minimal', name: 'Minimal', description: 'Ultra-clean minimal design', thumbnail: '' },
-                        { id: 'portfolio', name: 'Portfolio', description: 'Showcase your work beautifully', thumbnail: '' },
-                        { id: 'magazine', name: 'Magazine', content: 'Multi-column magazine style', thumbnail: '' }
-                    ];
-                }
-
-                const grid = document.getElementById('templates-grid');
-                if (grid) {
-                    grid.innerHTML = templatesList.map(t => `
-                        <div class="card rounded-lg overflow-hidden ${t.id === currentTemplateId ? 'ring-2 ring-green-500' : ''}">
-                            <div class="aspect-video bg-gray-700 flex items-center justify-center">
-                                ${t.thumbnail ? `<img src="${t.thumbnail}" class="w-full h-full object-cover">` : '<i class="fas fa-palette text-4xl text-gray-500"></i>'}
-                            </div>
-                            <div class="p-4">
-                                <div class="flex justify-between items-start mb-2">
-                                    <h3 class="text-white font-bold">${escapeHtml(t.name)}</h3>
-                                    ${t.id === currentTemplateId ? '<span class="bg-green-600 text-white text-xs px-2 py-1 rounded">Active</span>' : ''}
-                                </div>
-                                <p class="text-gray-400 text-sm mb-4">${escapeHtml(t.description || '')}</p>
-                                <div class="flex gap-2">
-                                    <button onclick="previewTemplate('${t.id}')" class="btn-secondary text-white px-3 py-1 rounded text-sm flex-1">
-                                        <i class="fas fa-eye"></i> Preview
-                                    </button>
-                                    ${t.id !== currentTemplateId ? `<button onclick="activateTemplate('${t.id}')" class="btn-primary text-white px-3 py-1 rounded text-sm flex-1">
-                                        <i class="fas fa-check"></i> Activate
-                                    </button>` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    `).join('');
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        function previewTemplate(templateId) {
-            const template = templatesList.find(t => t.id === templateId);
-            if (!template) return;
-            
-            selectedTemplate = template;
-            document.getElementById('modal-template-name').textContent = template.name + ' Preview';
-            document.getElementById('template-preview-frame').src = '/preview/' + templateId;
-            document.getElementById('template-modal').classList.remove('hidden');
-        }
-
-        function closeTemplateModal() {
-            document.getElementById('template-modal').classList.add('hidden');
-            document.getElementById('template-preview-frame').src = '';
-            selectedTemplate = null;
-        }
-
-        function activateTemplateFromModal() {
-            if (selectedTemplate) {
-                activateTemplate(selectedTemplate.id);
-                closeTemplateModal();
+                const [templatesRes, siteRes] = await Promise.all([
+                    fetch(API_BASE + '/api/templates', { headers: { 'Authorization': 'Bearer ' + authToken } }),
+                    fetch(API_BASE + '/api/sites/' + currentSite, { headers: { 'Authorization': 'Bearer ' + authToken } })
+                ]);
+                const templates = await templatesRes.json();
+                const site = await siteRes.json();
+                const currentId = site.template_id;
+                grid.innerHTML = templates.map(t => {
+                    const isActive = t.id === currentId;
+                    const activateBtn = isActive 
+                        ? '<span class="mt-3 inline-block w-full text-center text-green-500 py-2">Active</span>'
+                        : '<button onclick="activateTemplate(\'' + t.id + '\')" class="mt-3 w-full btn-primary py-2 rounded">Activate</button>';
+                    return '<div class="card rounded-lg overflow-hidden">' +
+                        '<div class="aspect-video bg-gray-700 flex items-center justify-center">' +
+                        '<i class="fas fa-palette text-4xl text-gray-500"></i></div>' +
+                        '<div class="p-4"><h3 class="text-white font-bold">' + escapeHtml(t.name) + '</h3>' +
+                        '<p class="text-gray-400 text-sm mt-1">' + escapeHtml(t.description || '') + '</p>' +
+                        activateBtn + '</div></div>';
+                }).join('');
+            } catch (err) {
+                grid.innerHTML = '<p class="text-red-400">Error loading templates</p>';
             }
         }
 
-        async function activateTemplate(templateId) {
-            if (!currentSite) return;
+        async function activateTemplate(id) {
+            if (!confirm('Activate this template?')) return;
             try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite, {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/template', {
                     method: 'PUT',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + authToken
-                    },
-                    body: JSON.stringify({ template_id: templateId })
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                    body: JSON.stringify({ template_id: id })
                 });
                 if (res.ok) {
                     showToast('Template activated!');
                     loadTemplates();
                 } else {
-                    showToast('Failed to activate template', 'error');
+                    showToast('Failed to activate', 'error');
                 }
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
-        }
-
-        // Template Code Editor Functions
-        function renderTemplateCodeView() {
-            return `
-                <div class="flex flex-col h-full">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-xl font-bold text-white">Code Editor</h2>
-                        <div class="flex gap-2">
-                            <input type="file" id="code-import-input" class="hidden" accept=".html,.css,.js" onchange="handleCodeImport(event)">
-                            <button onclick="document.getElementById('code-import-input').click()" class="btn-secondary text-white px-3 py-1 rounded text-sm">
-                                <i class="fas fa-upload"></i> Import
-                            </button>
-                            <button onclick="exportTemplateCode()" class="btn-secondary text-white px-3 py-1 rounded text-sm">
-                                <i class="fas fa-download"></i> Export
-                            </button>
-                            <button onclick="resetTemplateCode()" class="btn-secondary text-white px-3 py-1 rounded text-sm">
-                                <i class="fas fa-undo"></i> Reset
-                            </button>
-                            <button onclick="saveTemplateCode()" class="btn-primary text-white px-3 py-1 rounded text-sm">
-                                <i class="fas fa-save"></i> Save
-                            </button>
-                        </div>
-                    </div>
-                    ${renderCodeTabBar()}
-                    <div class="flex flex-1 gap-4 mt-4" style="height: calc(100vh - 320px);">
-                        <div class="w-1/2 bg-gray-900 rounded-lg overflow-hidden">
-                            <textarea id="template-code-editor"></textarea>
-                        </div>
-                        <div class="w-1/2 bg-white rounded-lg overflow-hidden">
-                            <div class="bg-gray-800 px-3 py-2 text-gray-400 text-sm border-b border-gray-700">Preview</div>
-                            <iframe id="code-preview-frame" class="w-full h-full"></iframe>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderCodeTabBar() {
-            const tabs = [
-                { id: 'html', label: 'HTML' },
-                { id: 'css', label: 'CSS' },
-                { id: 'js', label: 'JavaScript' }
-            ];
-            return `
-                <div class="flex gap-1 bg-gray-800 rounded-t-lg p-1">
-                    ${tabs.map(tab => `
-                        <button onclick="switchCodeTab('${tab.id}')" 
-                            class="px-4 py-2 rounded text-sm ${currentCodeTab === tab.id ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}">
-                            ${tab.label}
-                        </button>
-                    `).join('')}
-                </div>
-            `;
-        }
-
-        function switchCodeTab(tab) {
-            currentCodeTab = tab;
-            if (templateEditor) {
-                templateEditor.setValue(templateCodeState[tab] || '');
-                const mode = tab === 'html' ? 'htmlmixed' : tab;
-                templateEditor.setOption('mode', mode);
-            }
-            render();
-        }
-
-        async function initTemplateCodeEditor() {
-            const textarea = document.getElementById('template-code-editor');
-            if (!textarea) return;
-            
-            if (templateEditor) {
-                templateEditor.toTextArea();
-            }
-            
-            templateEditor = CodeMirror.fromTextArea(textarea, {
-                mode: 'htmlmixed',
-                theme: 'dracula',
-                lineNumbers: true,
-                lineWrapping: true,
-                autoCloseTags: true,
-                autoCloseBrackets: true
-            });
-            
-            templateEditor.on('change', () => {
-                templateCodeState[currentCodeTab] = templateEditor.getValue();
-            });
-            
-            templateEditor.setValue(templateCodeState[currentCodeTab] || '');
-            updateCodePreview();
-        }
-
-        async function loadTemplateCode() {
-            if (!currentSite) return;
-            try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/template-code', {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    templateCodeState = {
-                        html: data.html || '',
-                        css: data.css || '',
-                        js: data.js || ''
-                    };
-                    templateOriginalCode = { ...templateCodeState };
-                } else {
-                    templateCodeState = {
-                        html: '<html>\n<head>\n  <title>Template</title>\n</head>\n<body>\n  <div id="app"></div>\n</body>\n</html>',
-                        css: 'body {\n  font-family: sans-serif;\n}',
-                        js: 'console.log("Hello World");'
-                    };
-                    templateOriginalCode = { ...templateCodeState };
-                }
-                
-                setTimeout(() => {
-                    initTemplateCodeEditor();
-                }, 100);
-            } catch (err) {
-                console.error('Error loading template code:', err);
-                templateCodeState = {
-                    html: '<html>\n<head>\n  <title>Template</title>\n</head>\n<body>\n  <div id="app"></div>\n</body>\n</html>',
-                    css: 'body {\n  font-family: sans-serif;\n}',
-                    js: 'console.log("Hello World");'
-                };
-                templateOriginalCode = { ...templateCodeState };
-                setTimeout(() => {
-                    initTemplateCodeEditor();
-                }, 100);
-            }
-        }
-
-        async function saveTemplateCode() {
-            if (!currentSite) return;
-            
-            if (!validateTemplateCode()) {
-                return;
-            }
-            
-            try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/template-code', {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + authToken
-                    },
-                    body: JSON.stringify(templateCodeState)
-                });
-                if (res.ok) {
-                    templateOriginalCode = { ...templateCodeState };
-                    showToast('Template code saved!');
-                } else {
-                    showToast('Failed to save template code', 'error');
-                }
-            } catch (err) {
-                showToast('Error: ' + err.message, 'error');
-            }
-        }
-
-        function discardTemplateCode() {
-            templateCodeState = { ...templateOriginalCode };
-            if (templateEditor) {
-                templateEditor.setValue(templateCodeState[currentCodeTab] || '');
-            }
-            showToast('Changes discarded');
-            render();
-        }
-
-        function exportTemplateCode() {
-            const htmlBlob = new Blob([templateCodeState.html], { type: 'text/html' });
-            const cssBlob = new Blob([templateCodeState.css], { type: 'text/css' });
-            const jsBlob = new Blob([templateCodeState.js], { type: 'text/javascript' });
-            
-            const htmlLink = document.createElement('a');
-            htmlLink.href = URL.createObjectURL(htmlBlob);
-            htmlLink.download = 'template.html';
-            htmlLink.click();
-            
-            const cssLink = document.createElement('a');
-            cssLink.href = URL.createObjectURL(cssBlob);
-            cssLink.download = 'template.css';
-            cssLink.click();
-            
-            const jsLink = document.createElement('a');
-            jsLink.href = URL.createObjectURL(jsBlob);
-            jsLink.download = 'template.js';
-            jsLink.click();
-            
-            showToast('Template exported!');
-        }
-
-        function importTemplateCode() {
-            document.getElementById('code-import-input').click();
-        }
-
-        function handleCodeImport(event) {
-            const files = event.target.files;
-            if (!files || files.length === 0) return;
-            
-            let htmlCount = 0, cssCount = 0, jsCount = 0;
-            
-            for (const file of files) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const content = e.target.result;
-                    if (file.name.endsWith('.html')) {
-                        templateCodeState.html = content;
-                        htmlCount++;
-                    } else if (file.name.endsWith('.css')) {
-                        templateCodeState.css = content;
-                        cssCount++;
-                    } else if (file.name.endsWith('.js')) {
-                        templateCodeState.js = content;
-                        jsCount++;
-                    }
-                    
-                    if (htmlCount + cssCount + jsCount === files.length) {
-                        if (templateEditor) {
-                            templateEditor.setValue(templateCodeState[currentCodeTab] || '');
-                        }
-                        updateCodePreview();
-                        showToast('Code imported!');
-                    }
-                };
-                reader.readAsText(file);
-            }
-            event.target.value = '';
-        }
-
-        function updateCodePreview() {
-            const previewFrame = document.getElementById('code-preview-frame');
-            if (!previewFrame) return;
-            
-            const html = templateCodeState.html;
-            const css = templateCodeState.css;
-            const js = templateCodeState.js;
-            
-            const fullHtml = html.replace('</head>', `<style>${css}</style></head>`)
-                                 .replace('</body>', `<script>${js}</script></body>`);
-            
-            previewFrame.srcdoc = fullHtml;
-        }
-
-        function validateTemplateCode() {
-            if (!templateCodeState.html || templateCodeState.html.trim() === '') {
-                showToast('HTML code is required', 'error');
-                return false;
-            }
-            return true;
-        }
-
-        function resetTemplateCode() {
-            templateCodeState = {
-                html: '<html>\n<head>\n  <title>Template</title>\n</head>\n<body>\n  <div id="app"></div>\n</body>\n</html>',
-                css: 'body {\n  font-family: sans-serif;\n}',
-                js: 'console.log("Hello World");'
-            };
-            if (templateEditor) {
-                templateEditor.setValue(templateCodeState[currentCodeTab] || '');
-            }
-            updateCodePreview();
-            showToast('Code reset to default');
-        }
-
-        // Visual Customizer Functions
-        function renderTemplateCustomizeView() {
-            const themeMode = templateConfig.themeMode || 'light';
-            return `
-                <div class="flex gap-6" style="height: calc(100vh - 200px);">
-                    <div class="w-1/3 overflow-y-auto pr-4">
-                        <div class="flex justify-between items-center mb-4">
-                            <h2 class="text-xl font-bold text-white">Customize</h2>
-                            <div class="flex gap-1 bg-gray-700 rounded p-1">
-                                <button onclick="setThemeMode('light')" class="px-3 py-1 rounded text-sm ${themeMode === 'light' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}">
-                                    <i class="fas fa-sun"></i>
-                                </button>
-                                <button onclick="setThemeMode('dark')" class="px-3 py-1 rounded text-sm ${themeMode === 'dark' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}">
-                                    <i class="fas fa-moon"></i>
-                                </button>
-                                <button onclick="setThemeMode('system')" class="px-3 py-1 rounded text-sm ${themeMode === 'system' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}">
-                                    <i class="fas fa-desktop"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="space-y-3">
-                            ${renderColorControls()}
-                            ${renderTypographyControls()}
-                            ${renderHeroControls()}
-                            ${renderLayoutControls()}
-                            ${renderAdvancedControls()}
-                        </div>
-                    </div>
-                    <div class="w-2/3 bg-white rounded-lg overflow-hidden">
-                        <iframe id="customizer-preview" class="w-full h-full border-0" sandbox="allow-same-origin"></iframe>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderColorControls() {
-            const colors = templateConfig.colors || {};
-            return `
-                <div class="collapsible-section card rounded-lg overflow-hidden">
-                    <button onclick="toggleCollapsible(this)" class="w-full flex justify-between items-center p-4 text-white hover:bg-gray-700">
-                        <span><i class="fas fa-palette w-6"></i> Colors</span>
-                        <i class="fas fa-chevron-down transition-transform"></i>
-                    </button>
-                    <div class="collapsible-content p-4 space-y-3 border-t border-gray-700">
-                        <div class="flex items-center justify-between">
-                            <label class="text-gray-400 text-sm">Primary</label>
-                            <div class="flex items-center gap-2">
-                                <input type="color" value="${colors.primary || '#3b82f6'}" 
-                                    onchange="updateCustomizerSetting('colors.primary', this.value)" 
-                                    class="w-8 h-8 rounded cursor-pointer border-0">
-                                <input type="text" value="${colors.primary || '#3b82f6'}" 
-                                    onchange="updateCustomizerSetting('colors.primary', this.value)"
-                                    class="w-20 rounded px-2 py-1 text-sm">
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <label class="text-gray-400 text-sm">Secondary</label>
-                            <div class="flex items-center gap-2">
-                                <input type="color" value="${colors.secondary || '#8b5cf6'}" 
-                                    onchange="updateCustomizerSetting('colors.secondary', this.value)" 
-                                    class="w-8 h-8 rounded cursor-pointer border-0">
-                                <input type="text" value="${colors.secondary || '#8b5cf6'}" 
-                                    onchange="updateCustomizerSetting('colors.secondary', this.value)"
-                                    class="w-20 rounded px-2 py-1 text-sm">
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <label class="text-gray-400 text-sm">Accent</label>
-                            <div class="flex items-center gap-2">
-                                <input type="color" value="${colors.accent || '#10b981'}" 
-                                    onchange="updateCustomizerSetting('colors.accent', this.value)" 
-                                    class="w-8 h-8 rounded cursor-pointer border-0">
-                                <input type="text" value="${colors.accent || '#10b981'}" 
-                                    onchange="updateCustomizerSetting('colors.accent', this.value)"
-                                    class="w-20 rounded px-2 py-1 text-sm">
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <label class="text-gray-400 text-sm">Background</label>
-                            <div class="flex items-center gap-2">
-                                <input type="color" value="${colors.background || '#ffffff'}" 
-                                    onchange="updateCustomizerSetting('colors.background', this.value)" 
-                                    class="w-8 h-8 rounded cursor-pointer border-0">
-                                <input type="text" value="${colors.background || '#ffffff'}" 
-                                    onchange="updateCustomizerSetting('colors.background', this.value)"
-                                    class="w-20 rounded px-2 py-1 text-sm">
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <label class="text-gray-400 text-sm">Text</label>
-                            <div class="flex items-center gap-2">
-                                <input type="color" value="${colors.text || '#1f2937'}" 
-                                    onchange="updateCustomizerSetting('colors.text', this.value)" 
-                                    class="w-8 h-8 rounded cursor-pointer border-0">
-                                <input type="text" value="${colors.text || '#1f2937'}" 
-                                    onchange="updateCustomizerSetting('colors.text', this.value)"
-                                    class="w-20 rounded px-2 py-1 text-sm">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderTypographyControls() {
-            const typography = templateConfig.typography || {};
-            return `
-                <div class="collapsible-section card rounded-lg overflow-hidden">
-                    <button onclick="toggleCollapsible(this)" class="w-full flex justify-between items-center p-4 text-white hover:bg-gray-700">
-                        <span><i class="fas fa-font w-6"></i> Typography</span>
-                        <i class="fas fa-chevron-down transition-transform"></i>
-                    </button>
-                    <div class="collapsible-content p-4 space-y-3 border-t border-gray-700">
-                        <div>
-                            <label class="text-gray-400 text-sm block mb-2">Heading Font</label>
-                            <select onchange="updateCustomizerSetting('typography.headingFont', this.value)" 
-                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600">
-                                <option value="system-ui" ${typography.headingFont === 'system-ui' ? 'selected' : ''}>System UI</option>
-                                <option value="Georgia, serif" ${typography.headingFont === 'Georgia, serif' ? 'selected' : ''}>Georgia</option>
-                                <option value="Times New Roman, serif" ${typography.headingFont === 'Times New Roman, serif' ? 'selected' : ''}>Times New Roman</option>
-                                <option value="Arial, sans-serif" ${typography.headingFont === 'Arial, sans-serif' ? 'selected' : ''}>Arial</option>
-                                <option value="Verdana, sans-serif" ${typography.headingFont === 'Verdana, sans-serif' ? 'selected' : ''}>Verdana</option>
-                                <option value="Trebuchet MS, sans-serif" ${typography.headingFont === 'Trebuchet MS, sans-serif' ? 'selected' : ''}>Trebuchet MS</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="text-gray-400 text-sm block mb-2">Body Font</label>
-                            <select onchange="updateCustomizerSetting('typography.bodyFont', this.value)" 
-                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600">
-                                <option value="system-ui, sans-serif" ${typography.bodyFont === 'system-ui, sans-serif' ? 'selected' : ''}>System UI</option>
-                                <option value="Georgia, serif" ${typography.bodyFont === 'Georgia, serif' ? 'selected' : ''}>Georgia</option>
-                                <option value="Arial, sans-serif" ${typography.bodyFont === 'Arial, sans-serif' ? 'selected' : ''}>Arial</option>
-                                <option value="Verdana, sans-serif" ${typography.bodyFont === 'Verdana, sans-serif' ? 'selected' : ''}>Verdana</option>
-                                <option value="Helvetica, Arial, sans-serif" ${typography.bodyFont === 'Helvetica, Arial, sans-serif' ? 'selected' : ''}>Helvetica</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="text-gray-400 text-sm block mb-2">Heading Size</label>
-                            <input type="range" min="16" max="48" value="${typography.headingSize || 32}" 
-                                onchange="updateCustomizerSetting('typography.headingSize', parseInt(this.value))"
-                                class="w-full">
-                            <span class="text-gray-400 text-sm">${typography.headingSize || 32}px</span>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderHeroControls() {
-            const hero = templateConfig.hero || {};
-            return `
-                <div class="collapsible-section card rounded-lg overflow-hidden">
-                    <button onclick="toggleCollapsible(this)" class="w-full flex justify-between items-center p-4 text-white hover:bg-gray-700">
-                        <span><i class="fas fa-home w-6"></i> Hero</span>
-                        <i class="fas fa-chevron-down transition-transform"></i>
-                    </button>
-                    <div class="collapsible-content p-4 space-y-3 border-t border-gray-700">
-                        <div>
-                            <label class="text-gray-400 text-sm block mb-2">Title</label>
-                            <input type="text" value="${hero.title || 'Welcome to My Blog'}" 
-                                onchange="updateCustomizerSetting('hero.title', this.value)"
-                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600" placeholder="Hero title...">
-                        </div>
-                        <div>
-                            <label class="text-gray-400 text-sm block mb-2">Subtitle</label>
-                            <textarea onchange="updateCustomizerSetting('hero.subtitle', this.value)" 
-                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600" rows="2" 
-                                placeholder="Hero subtitle...">${hero.subtitle || ''}</textarea>
-                        </div>
-                        <div>
-                            <label class="text-gray-400 text-sm block mb-2">CTA Text</label>
-                            <input type="text" value="${hero.ctaText || 'Learn More'}" 
-                                onchange="updateCustomizerSetting('hero.ctaText', this.value)"
-                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600" placeholder="Button text...">
-                        </div>
-                        <div>
-                            <label class="text-gray-400 text-sm block mb-2">CTA Link</label>
-                            <input type="text" value="${hero.ctaLink || '#'}" 
-                                onchange="updateCustomizerSetting('hero.ctaLink', this.value)"
-                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600" placeholder="/about">
-                        </div>
-                        <div>
-                            <label class="text-gray-400 text-sm block mb-2">Background</label>
-                            <select onchange="updateCustomizerSetting('hero.background', this.value)" 
-                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600">
-                                <option value="solid" ${hero.background === 'solid' ? 'selected' : ''}>Solid Color</option>
-                                <option value="gradient" ${hero.background === 'gradient' ? 'selected' : ''}>Gradient</option>
-                                <option value="image" ${hero.background === 'image' ? 'selected' : ''}>Image</option>
-                                <option value="none" ${hero.background === 'none' ? 'selected' : ''}>None</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderLayoutControls() {
-            const layout = templateConfig.layout || {};
-            return `
-                <div class="collapsible-section card rounded-lg overflow-hidden">
-                    <button onclick="toggleCollapsible(this)" class="w-full flex justify-between items-center p-4 text-white hover:bg-gray-700">
-                        <span><i class="fas fa-columns w-6"></i> Layout</span>
-                        <i class="fas fa-chevron-down transition-transform"></i>
-                    </button>
-                    <div class="collapsible-content p-4 space-y-3 border-t border-gray-700">
-                        <div>
-                            <label class="text-gray-400 text-sm block mb-2">Container Width</label>
-                            <select onchange="updateCustomizerSetting('layout.containerWidth', this.value)" 
-                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600">
-                                <option value="narrow" ${layout.containerWidth === 'narrow' ? 'selected' : ''}>Narrow (640px)</option>
-                                <option value="default" ${layout.containerWidth === 'default' ? 'selected' : ''}>Default (1024px)</option>
-                                <option value="wide" ${layout.containerWidth === 'wide' ? 'selected' : ''}>Wide (1280px)</option>
-                                <option value="full" ${layout.containerWidth === 'full' ? 'selected' : ''}>Full Width</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="text-gray-400 text-sm block mb-2">Sidebar Position</label>
-                            <select onchange="updateCustomizerSetting('layout.sidebarPosition', this.value)" 
-                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600">
-                                <option value="left" ${layout.sidebarPosition === 'left' ? 'selected' : ''}>Left</option>
-                                <option value="right" ${layout.sidebarPosition === 'right' ? 'selected' : ''}>Right</option>
-                                <option value="none" ${layout.sidebarPosition === 'none' ? 'selected' : ''}>No Sidebar</option>
-                            </select>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <label class="text-gray-400 text-sm">Show Header</label>
-                            <input type="checkbox" ${layout.showHeader !== false ? 'checked' : ''} 
-                                onchange="updateCustomizerSetting('layout.showHeader', this.checked)">
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <label class="text-gray-400 text-sm">Show Footer</label>
-                            <input type="checkbox" ${layout.showFooter !== false ? 'checked' : ''} 
-                                onchange="updateCustomizerSetting('layout.showFooter', this.checked)">
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderAdvancedControls() {
-            const advanced = templateConfig.advanced || {};
-            return `
-                <div class="collapsible-section card rounded-lg overflow-hidden">
-                    <button onclick="toggleCollapsible(this)" class="w-full flex justify-between items-center p-4 text-white hover:bg-gray-700">
-                        <span><i class="fas fa-code w-6"></i> Advanced</span>
-                        <i class="fas fa-chevron-down transition-transform"></i>
-                    </button>
-                    <div class="collapsible-content p-4 space-y-3 border-t border-gray-700">
-                        <div>
-                            <label class="text-gray-400 text-sm block mb-2">Custom CSS</label>
-                            <textarea onchange="updateCustomizerSetting('advanced.customCss', this.value)" 
-                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600 font-mono text-sm" 
-                                rows="6" placeholder="/* Add custom CSS here */">${advanced.customCss || ''}</textarea>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function toggleCollapsible(button) {
-            const section = button.closest('.collapsible-section');
-            const content = section.querySelector('.collapsible-content');
-            const icon = button.querySelector('.fa-chevron-down');
-            content.classList.toggle('hidden');
-            icon.classList.toggle('rotate-180');
-        }
-
-        async function loadTemplateCustomizeSettings() {
-            if (!currentSite) return;
-            try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite, {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                if (res.ok) {
-                    const site = await res.json();
-                    templateConfig = site.template_config || { colors: {}, typography: {}, hero: {}, layout: {}, advanced: {} };
-                    setTimeout(updatePreview, 100);
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        function updateCustomizerSetting(path, value) {
-            const keys = path.split('.');
-            let obj = templateConfig;
-            for (let i = 0; i < keys.length - 1; i++) {
-                if (!obj[keys[i]]) obj[keys[i]] = {};
-                obj = obj[keys[i]];
-            }
-            obj[keys[keys.length - 1]] = value;
-            debouncedSave();
-            render();
-            setTimeout(updatePreview, 100);
-        }
-
-        function debouncedSave() {
-            if (customizerDebounceTimer) clearTimeout(customizerDebounceTimer);
-            customizerDebounceTimer = setTimeout(saveTemplateCustomizeSettings, 1000);
-        }
-
-        async function saveTemplateCustomizeSettings() {
-            if (!currentSite) return;
-            try {
-                const res = await fetch(API_BASE + '/api/sites/' + currentSite, {
-                    method: 'PUT',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + authToken
-                    },
-                    body: JSON.stringify({ template_config: templateConfig })
-                });
-                if (res.ok) {
-                    showToast('Settings saved!');
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        function setThemeMode(mode) {
-            templateConfig.themeMode = mode;
-            debouncedSave();
-            render();
-            setTimeout(updatePreview, 100);
-        }
-
-        function generatePreviewHtml() {
-            const colors = templateConfig.colors || {};
-            const typography = templateConfig.typography || {};
-            const hero = templateConfig.hero || {};
-            const layout = templateConfig.layout || {};
-            const advanced = templateConfig.advanced || {};
-            const themeMode = templateConfig.themeMode || 'light';
-            
-            const isDark = themeMode === 'dark' || (themeMode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-            
-            const bgColor = isDark ? '#1a1a1a' : (colors.background || '#ffffff');
-            const textColor = isDark ? '#e0e0e0' : (colors.text || '#1f2937');
-            const primaryColor = colors.primary || '#3b82f6';
-            const headingFont = typography.headingFont || 'system-ui';
-            const bodyFont = typography.bodyFont || 'system-ui, sans-serif';
-            const headingSize = typography.headingSize || 32;
-            
-            const containerWidths = { narrow: '640px', default: '1024px', wide: '1280px', full: '100%' };
-            const containerWidth = containerWidths[layout.containerWidth] || '1024px';
-            
-            const bgStyle = hero.background === 'gradient' 
-                ? `background: linear-gradient(135deg, ${primaryColor}, ${colors.secondary || '#8b5cf6'});`
-                : hero.background === 'solid'
-                ? `background: ${primaryColor};`
-                : hero.background === 'image'
-                ? `background: url('https://picsum.photos/1200/400') center/cover;`
-                : '';
-            
-            const customCss = advanced.customCss || '';
-            
-            return `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://cdn.tailwindcss.com">
-    <style>
-        body { font-family: ${bodyFont}; background: ${bgColor}; color: ${textColor}; }
-        h1, h2, h3, h4, h5, h6 { font-family: ${headingFont}; font-size: ${headingSize}px; }
-        .btn { background: ${primaryColor}; color: white; padding: 10px 20px; border-radius: 5px; text-decoration: none; display: inline-block; }
-        .container { max-width: ${containerWidth}; margin: 0 auto; padding: 20px; }
-        .hero { padding: 60px 20px; text-align: center; ${bgStyle} color: ${hero.background !== 'none' ? 'white' : textColor}; }
-        .hero h1 { font-size: ${headingSize + 8}px; margin-bottom: 10px; }
-        ${layout.sidebarPosition === 'none' ? '.content { width: 100%; }' : '.content { width: 70%; }'}
-        ${layout.sidebarPosition !== 'none' ? '.sidebar { width: 25%; }' : ''}
-        .layout-wrapper { display: flex; gap: 30px; }
-        .card { background: ${isDark ? '#2d2d2d' : '#f9f9f9'}; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
-        ${customCss}
-    </style>
-</head>
-<body>
-    ${layout.showHeader !== false ? '<header style="padding: 20px; border-bottom: 1px solid ' + (isDark ? '#444' : '#eee') + ';"><div class="container"><h2 style="margin: 0;">My Blog</h2></div></header>' : ''}
-    <div class="container">
-        ${hero.background !== 'none' ? `
-        <section class="hero">
-            <h1>${hero.title || 'Welcome to My Blog'}</h1>
-            <p>${hero.subtitle || ''}</p>
-            ${hero.ctaText ? '<a href="' + (hero.ctaLink || '#') + '" class="btn">' + hero.ctaText + '</a>' : ''}
-        </section>
-        ` : ''}
-        <div class="layout-wrapper" style="margin-top: 40px;">
-            <div class="content">
-                <article class="card">
-                    <h2 style="margin-top: 0;">Sample Blog Post</h2>
-                    <p>This is a preview of how your blog will look with the current customization settings. The content here is sample text to demonstrate the typography and layout options.</p>
-                    <p>You can customize colors, fonts, hero section, and layout to match your brand.</p>
-                </article>
-                <article class="card">
-                    <h2>Another Post</h2>
-                    <p>More sample content to show the layout and styling options available in the visual customizer.</p>
-                </article>
-            </div>
-            ${layout.sidebarPosition !== 'none' ? `
-            <aside class="sidebar">
-                <div class="card">
-                    <h3>About</h3>
-                    <p>Sample sidebar content.</p>
-                </div>
-                <div class="card">
-                    <h3>Categories</h3>
-                    <ul style="padding-left: 20px;">
-                        <li>Technology</li>
-                        <li>Design</li>
-                        <li>Business</li>
-                    </ul>
-                </div>
-            </aside>
-            ` : ''}
-        </div>
-    </div>
-    ${layout.showFooter !== false ? '<footer style="padding: 40px 20px; text-align: center; border-top: 1px solid ' + (isDark ? '#444' : '#eee') + '; margin-top: 40px;"><p>&copy; 2024 My Blog</p></footer>' : ''}
-</body>
-</html>`;
-        }
-
-        function updatePreview() {
-            const iframe = document.getElementById('customizer-preview');
-            if (!iframe) return;
-            const html = generatePreviewHtml();
-            iframe.srcdoc = html;
         }
 
         // Start
