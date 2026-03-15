@@ -265,11 +265,6 @@ async fn run_migrations(db: &sqlx::PgPool) {
         .await
         .ok();
 
-    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS blog_sort_order INTEGER DEFAULT 1")
-        .execute(db)
-        .await
-        .ok();
-
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS users (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
