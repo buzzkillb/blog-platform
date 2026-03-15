@@ -1,95 +1,13 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% if title and title != site_name %}{{ title }} - {% endif %}{{ site_name }}</title>
-    {% if site_description %}<meta name="description" content="{{ site_description }}">{% endif %}
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        :root {
-            --bg-color: var(--bg-color-light, #ffffff);
-            --text-color: var(--text-color-light, #333333);
-            --accent-color: {{ accent_color | default('#2ea44f') }};
-            --nav-bg: var(--nav-bg-light, #24292f);
-            --nav-text: #ffffff;
-            --card-bg: var(--card-bg-light, #ffffff);
-            --border-color: var(--border-color-light, #d0d7de);
-            --sidebar-bg: var(--card-bg-light, #f6f8fa);
-        }
-        [data-theme="dark"] {
-            --bg-color: #0d1117;
-            --text-color: #c9d1d9;
-            --nav-bg: #161b22;
-            --card-bg: #161b22;
-            --border-color: #30363d;
-            --sidebar-bg: #161b22;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: {{ font_body | default('system-ui, -apple-system, sans-serif') }}; background: var(--bg-color); color: var(--text-color); line-height: 1.6; }
-        a { color: var(--accent-color); text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        header { background: var(--nav-bg); padding: 1rem 2rem; }
-        .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-        .logo { font-size: 1.5rem; font-weight: bold; color: var(--nav-text); }
-        nav ul { display: flex; list-style: none; gap: 1.5rem; }
-        nav a { color: var(--nav-text); font-weight: 500; }
-        .page-header { background: var(--sidebar-bg); border-bottom: 1px solid var(--border-color); padding: 3rem 2rem; text-align: center; }
-        .page-header h1 { font-family: {{ font_heading | default('system-ui') }}; font-size: 2.5rem; margin-bottom: 0.5rem; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; display: grid; grid-template-columns: 1fr 300px; gap: 2rem; }
-        @media (max-width: 768px) { .container { grid-template-columns: 1fr; } }
-        .posts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2rem; }
-        .post-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; transition: transform 0.2s, box-shadow 0.2s; }
-        .post-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
-        .post-card img { width: 100%; height: 200px; object-fit: cover; }
-        .post-content { padding: 1.5rem; }
-        .post-card h3 { font-family: {{ font_heading | default('system-ui') }}; margin-bottom: 0.5rem; }
-        .meta { color: var(--text-color); opacity: 0.7; font-size: 0.875rem; margin-bottom: 1rem; }
-        .excerpt { color: var(--text-color); opacity: 0.8; }
-        .sidebar { display: flex; flex-direction: column; gap: 2rem; }
-        .sidebar-widget { background: var(--sidebar-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem; }
-        .sidebar-widget h3 { font-family: {{ font_heading | default('system-ui') }}; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--accent-color); }
-        .sidebar-widget ul { list-style: none; }
-        .sidebar-widget li { padding: 0.5rem 0; border-bottom: 1px solid var(--border-color); }
-        .sidebar-widget li:last-child { border-bottom: none; }
-        footer { background: var(--nav-bg); color: var(--nav-text); padding: 2rem; text-align: center; margin-top: 4rem; }
-    </style>
-</head>
-<body>
-    <header>
-        <div class="header-content">
-            <a href="/" class="logo">{{ site_name }}</a>
-            <nav><ul>{% for link in nav_links %}<li><a href="{{ link.url }}">{{ link.label }}</a></li>{% endfor %}</ul></nav>
-        </div>
-    </header>
-    {% if posts %}
-    <section class="page-header"><h1>Blog</h1><p>Latest posts and updates</p></section>
-    <div class="container">
-        <main>
-            <div class="posts-grid">
-            {% for post in posts %}
-                <article class="post-card">
-                    {% if post.featured_image %}<img src="{{ post.featured_image }}" alt="{{ post.title }}">{% endif %}
-                    <div class="post-content">
-                        <h3><a href="/blog/{{ post.slug }}.html">{{ post.title }}</a></h3>
-                        <p class="meta">{{ post.published_at }}</p>
-                        <p class="excerpt">{{ post.excerpt | default('') }}</p>
-                    </div>
-                </article>
-            {% endfor %}
-            </div>
-        </main>
-        <aside class="sidebar">
-            <div class="sidebar-widget"><h3>About</h3><p>{{ site_description | default('A blog about interesting topics.') }}</p></div>
-        </aside>
-    </div>
-    {% elif content %}
-    <section class="page-header"><h1>{{ page_title | default('Blog') }}</h1>{% if page_subtitle %}<p>{{ page_subtitle }}</p>{% endif %}</section>
-    <div class="container"><main>{{ content | safe }}</main><aside class="sidebar"><div class="sidebar-widget"><h3>About</h3><p>{{ site_description | default('A blog about interesting topics.') }}</p></div></aside></div>
-    {% else %}
-    <section class="page-header"><h1>{{ page_title | default('Blog') }}</h1>{% if page_subtitle %}<p>{{ page_subtitle }}</p>{% endif %}</section>
-    <div class="container"><main></main><aside class="sidebar"><div class="sidebar-widget"><h3>About</h3><p>{{ site_description | default('A blog about interesting topics.') }}</p></div></aside></div>
-    {% endif %}
-    <footer><p>&copy; 2026 {{ site_name }}. All rights reserved.</p></footer>
-</body>
-</html>
+{
+  "name": "Blog",
+  "description": "Classic blog layout with posts grid and sidebar",
+  "category": "blog",
+  "html_content": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>{% if title and title != site_name %}{{ title }} - {% endif %}{{ site_name }}</title>\n    {% if site_description %}<meta name=\"description\" content=\"{{ site_description }}\">{% endif %}\n    <link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css\">\n    <style>\n        :root {\n            --bg-color: var(--bg-color-light, #ffffff);\n            --text-color: var(--text-color-light, #333333);\n            --accent-color: {{ accent_color | default('#2ea44f') }};\n            --nav-bg: var(--nav-bg-light, #24292f);\n            --nav-text: #ffffff;\n            --card-bg: var(--card-bg-light, #ffffff);\n            --border-color: var(--border-color-light, #d0d7de);\n            --sidebar-bg: var(--card-bg-light, #f6f8fa);\n        }\n        [data-theme=\"dark\"] {\n            --bg-color: #0d1117;\n            --text-color: #c9d1d9;\n            --nav-bg: #161b22;\n            --card-bg: #161b22;\n            --border-color: #30363d;\n            --sidebar-bg: #161b22;\n        }\n        * { margin: 0; padding: 0; box-sizing: border-box; }\n        body { font-family: {{ font_body | default('system-ui, -apple-system, sans-serif') }}; background: var(--bg-color); color: var(--text-color); line-height: 1.6; }\n        a { color: var(--accent-color); text-decoration: none; }\n        a:hover { text-decoration: underline; }\n        header { background: var(--nav-bg); padding: 1rem 2rem; }\n        .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }\n        .logo { font-size: 1.5rem; font-weight: bold; color: var(--nav-text); }\n        nav ul { display: flex; list-style: none; gap: 1.5rem; }\n        nav a { color: var(--nav-text); font-weight: 500; }\n        .hero { background: linear-gradient(135deg, var(--accent-color), #1a5c32); color: white; padding: 4rem 2rem; text-align: center; }\n        .hero h1 { font-family: {{ font_heading | default('system-ui') }}; font-size: 3rem; margin-bottom: 1rem; }\n        .hero p { font-size: 1.25rem; opacity: 0.9; max-width: 600px; margin: 0 auto; }\n        .page-header { background: var(--sidebar-bg); border-bottom: 1px solid var(--border-color); padding: 3rem 2rem; text-align: center; }\n        .page-header h1 { font-family: {{ font_heading | default('system-ui') }}; font-size: 2.5rem; margin-bottom: 0.5rem; }\n        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }\n        .container-with-sidebar { max-width: 1200px; margin: 0 auto; padding: 2rem; display: grid; grid-template-columns: 1fr 300px; gap: 2rem; }\n        @media (max-width: 768px) { .container-with-sidebar { grid-template-columns: 1fr; } }\n        .posts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2rem; }\n        .post-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; transition: transform 0.2s, box-shadow 0.2s; }\n        .post-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.15); }\n        .post-card img { width: 100%; height: 200px; object-fit: cover; }\n        .post-content { padding: 1.5rem; }\n        .post-card h3 { font-family: {{ font_heading | default('system-ui') }}; margin-bottom: 0.5rem; }\n        .meta { color: var(--text-color); opacity: 0.7; font-size: 0.875rem; margin-bottom: 1rem; }\n        .excerpt { color: var(--text-color); opacity: 0.8; }\n        .sidebar { display: flex; flex-direction: column; gap: 2rem; }\n        .sidebar-widget { background: var(--sidebar-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem; }\n        .sidebar-widget h3 { font-family: {{ font_heading | default('system-ui') }}; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--accent-color); }\n        .sidebar-widget ul { list-style: none; }\n        .sidebar-widget li { padding: 0.5rem 0; border-bottom: 1px solid var(--border-color); }\n        .sidebar-widget li:last-child { border-bottom: none; }\n        article { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 2rem; margin-bottom: 2rem; }\n        article h2 { font-family: {{ font_heading | default('system-ui') }}; margin-bottom: 1rem; }\n        footer { background: var(--nav-bg); color: var(--nav-text); padding: 2rem; text-align: center; margin-top: 4rem; }\n    </style>\n</head>\n<body>\n    <header>\n        <div class=\"header-content\">\n            <a href=\"/\" class=\"logo\">{{ site_name }}</a>\n            <nav><ul>{% for link in nav_links %}<li><a href=\"{{ link.url }}\">{{ link.label }}</a></li>{% endfor %}</ul></nav>\n        </div>\n    </header>\n    \n    {% if posts %}\n    <section class=\"page-header\"><h1>Blog</h1><p>Latest posts and updates</p></section>\n    <div class=\"container-with-sidebar\">\n        <main>\n            <div class=\"posts-grid\">\n            {% for post in posts %}\n                <article class=\"post-card\">\n                    {% if post.featured_image %}<img src=\"{{ post.featured_image }}\" alt=\"{{ post.title }}\">{% endif %}\n                    <div class=\"post-content\">\n                        <h3><a href=\"/blog/{{ post.slug }}.html\">{{ post.title }}</a></h3>\n                        <p class=\"meta\">{{ post.published_at }}</p>\n                        <p class=\"excerpt\">{{ post.excerpt | default('') }}</p>\n                    </div>\n                </article>\n            {% endfor %}\n            </div>\n        </main>\n        <aside class=\"sidebar\">\n            <div class=\"sidebar-widget\"><h3>About</h3><p>{{ site_description | default('Welcome to our blog.') }}</p></div>\n        </aside>\n    </div>\n    \n    {% elif slug == 'blog' or title == 'Blog' %}\n    <section class=\"page-header\"><h1>Blog</h1></section>\n    <div class=\"container-with-sidebar\">\n        <main>{{ content | safe }}</main>\n        <aside class=\"sidebar\">\n            <div class=\"sidebar-widget\"><h3>About</h3><p>{{ site_description | default('Welcome to our blog.') }}</p></div>\n        </aside>\n    </div>\n    \n    {% else %}\n    <section class=\"hero\">\n        <h1>{{ hero_title | default(site_name) }}</h1>\n        <p>{{ hero_subtitle | default('') }}</p>\n    </section>\n    <div class=\"container\">\n        {{ content | safe }}\n    </div>\n    {% endif %}\n    \n    <footer><p>&copy; 2026 {{ site_name }}. All rights reserved.</p></footer>\n</body>\n</html>",
+  "default_config": {
+    "accent_color": "#2ea44f",
+    "font_heading": "system-ui",
+    "font_body": "system-ui, -apple-system, sans-serif",
+    "hero_title": "Welcome",
+    "hero_subtitle": "A modern blog platform"
+  }
+}
