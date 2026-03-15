@@ -64,6 +64,7 @@ async fn main() {
     };
 
     run_migrations(&db).await;
+    seed_templates(&db).await;
     seed_default_pages(&db).await;
 
     let state = AppState { db };
@@ -465,6 +466,95 @@ async fn run_migrations(db: &sqlx::PgPool) {
         .execute(db)
         .await
         .ok();
+}
+
+#[derive(serde::Deserialize)]
+struct TemplateJson {
+    name: String,
+    description: Option<String>,
+    category: Option<String>,
+    #[serde(rename = "thumbnail_url")]
+    thumbnail_url: Option<String>,
+    #[serde(rename = "html_content")]
+    html_content: Option<String>,
+    #[serde(rename = "css_content")]
+    css_content: Option<String>,
+    #[serde(rename = "js_content")]
+    js_content: Option<String>,
+    #[serde(rename = "default_config")]
+    default_config: Option<serde_json::Value>,
+}
+
+async fn seed_templates(db: &sqlx::PgPool) {
+    let templates_dir = std::path::Path::new("templates/json");
+    if !templates_dir.exists() {
+        tracing::warn!("Templates directory not found: templates/json");
+        return;
+    }
+
+    let entries = match std::fs::read_dir(templates_dir) {
+        Ok(entries) => entries,
+        Err(e) => {
+            tracing::error!("Failed to read templates directory: {}", e);
+            return;
+        }
+    };
+
+    let mut seeded_count = 0;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("json") {
+            continue;
+        }
+
+        let content = match std::fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::error!("Failed to read template file {:?}: {}", path, e);
+                continue;
+            }
+        };
+
+        let template: TemplateJson = match serde_json::from_str(&content) {
+            Ok(t) => t,
+            Err(e) => {
+                tracing::error!("Failed to parse template file {:?}: {}", path, e);
+                continue;
+            }
+        };
+
+        let result = sqlx::query(
+            "INSERT INTO templates (name, description, category, thumbnail_url, html_content, css_content, js_content, default_config, is_builtin)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
+             ON CONFLICT (name) DO NOTHING",
+        )
+        .bind(&template.name)
+        .bind(&template.description)
+        .bind(&template.category)
+        .bind(&template.thumbnail_url)
+        .bind(&template.html_content)
+        .bind(&template.css_content)
+        .bind(&template.js_content)
+        .bind(&template.default_config)
+        .execute(db)
+        .await;
+
+        match result {
+            Ok(result) if result.rows_affected() > 0 => {
+                tracing::info!("Seeded template: {}", template.name);
+                seeded_count += 1;
+            }
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("Failed to seed template {}: {}", template.name, e);
+            }
+        }
+    }
+
+    if seeded_count > 0 {
+        tracing::info!("Seeded {} templates from JSON files", seeded_count);
+    }
 }
 
 async fn seed_default_pages(db: &sqlx::PgPool) {
