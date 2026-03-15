@@ -176,6 +176,7 @@ pub type ContactSubmissionRow = (Uuid, Uuid, String, String, String, DateTime<Ut
 /// Row type for Template queries: SELECT id, name, description, category,
 /// thumbnail_url, html_content, css_content, js_content, default_config,
 /// is_builtin, created_at, updated_at
+#[allow(dead_code)]
 pub type TemplateRow = (
     Uuid,
     String,

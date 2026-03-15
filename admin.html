@@ -2141,7 +2141,6 @@
         }
 
         async function activateTemplate(id) {
-            if (!confirm('Activate this template?')) return;
             try {
                 const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/template', {
                     method: 'PUT',
@@ -2149,7 +2148,7 @@
                     body: JSON.stringify({ template_id: id })
                 });
                 if (res.ok) {
-                    showToast('Template activated!');
+                    showToast('Template activated! Rebuild to see changes.');
                     loadTemplates();
                 } else {
                     showToast('Failed to activate', 'error');

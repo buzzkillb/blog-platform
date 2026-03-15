@@ -9,9 +9,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::api::auth::{require_auth, require_site_member};
-use crate::errors::{
-    ApiError, CreateTemplateRequest, TemplateResponse, UpdateTemplateRequest,
-};
+use crate::errors::{ApiError, CreateTemplateRequest, TemplateResponse, UpdateTemplateRequest};
 use crate::models::TemplateListItem;
 use crate::AppState;
 
@@ -20,9 +18,14 @@ pub fn router() -> Router<AppState> {
         .route("/api/templates", get(list_templates).post(create_template))
         .route(
             "/api/templates/{id}",
-            get(get_template).put(update_template).delete(delete_template),
+            get(get_template)
+                .put(update_template)
+                .delete(delete_template),
         )
-        .route("/api/sites/{site_id}/template", get(get_site_template).put(assign_template))
+        .route(
+            "/api/sites/{site_id}/template",
+            get(get_site_template).put(assign_template),
+        )
         .route("/api/sites/{site_id}/theme", put(update_theme))
         .route(
             "/api/sites/{site_id}/template-config",
@@ -212,11 +215,7 @@ pub async fn delete_template(
         return Err(ApiError::new("Template not found"));
     }
 
-    tracing::info!(
-        "User {} deleted template {}",
-        current_user.user_id,
-        id
-    );
+    tracing::info!("User {} deleted template {}", current_user.user_id, id);
 
     Ok(axum::http::StatusCode::NO_CONTENT)
 }

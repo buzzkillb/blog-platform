@@ -454,10 +454,12 @@ async fn run_migrations(db: &sqlx::PgPool) {
     .await
     .expect("Failed to create templates table");
 
-    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS template_id UUID REFERENCES templates(id)")
-        .execute(db)
-        .await
-        .ok();
+    sqlx::query(
+        "ALTER TABLE sites ADD COLUMN IF NOT EXISTS template_id UUID REFERENCES templates(id)",
+    )
+    .execute(db)
+    .await
+    .ok();
     sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS template_config JSONB DEFAULT '{}'")
         .execute(db)
         .await

@@ -58,10 +58,15 @@ pub fn routes() -> Router<crate::AppState> {
         )
         .route("/api/sites/{site_id}/build", post(build_site))
         .route("/api/sites/{site_id}/deploy", post(deploy_pages))
-        .route("/api/templates", get(templates::list_templates).post(templates::create_template))
+        .route(
+            "/api/templates",
+            get(templates::list_templates).post(templates::create_template),
+        )
         .route(
             "/api/templates/{id}",
-            get(templates::get_template).put(templates::update_template).delete(templates::delete_template),
+            get(templates::get_template)
+                .put(templates::update_template)
+                .delete(templates::delete_template),
         )
         .route(
             "/api/sites/{site_id}/template",
