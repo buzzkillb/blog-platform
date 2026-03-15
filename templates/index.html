@@ -9,7 +9,7 @@
     {% for post in posts %}
     <article class="post-card">
         {% if post.featured_image %}
-        <img src="{{ post.featured_image }}" alt="{{ post.title }}">
+        <img src="{{ post.featured_image | safe }}" alt="{{ post.title }}">
         {% endif %}
         <div class="post-card-content">
             <h2>

@@ -227,6 +227,7 @@ async fn run_migrations(db: &sqlx::PgPool) {
             homepage_type VARCHAR(20) DEFAULT 'both',
             landing_blocks JSONB DEFAULT '[]',
             blog_path VARCHAR(100) DEFAULT '/blog',
+            blog_sort_order INTEGER DEFAULT 1,
             created_at TIMESTAMPTZ DEFAULT NOW(),
             settings JSONB DEFAULT '{}'
         )",
@@ -239,8 +240,27 @@ async fn run_migrations(db: &sqlx::PgPool) {
         .execute(db)
         .await
         .ok();
-
     sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS blog_sort_order INTEGER DEFAULT 1")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query(
+        "ALTER TABLE sites ADD COLUMN IF NOT EXISTS homepage_type VARCHAR(20) DEFAULT 'both'",
+    )
+    .execute(db)
+    .await
+    .ok();
+    sqlx::query(
+        "ALTER TABLE sites ADD COLUMN IF NOT EXISTS blog_path VARCHAR(100) DEFAULT '/blog'",
+    )
+    .execute(db)
+    .await
+    .ok();
+    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS landing_blocks JSONB DEFAULT '[]'")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'")
         .execute(db)
         .await
         .ok();

@@ -19,7 +19,7 @@ pub async fn list(
     let current_user = require_auth(State(state.clone()), headers).await?;
 
     let rows = sqlx::query(
-        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, blog_sort_order, landing_blocks, settings, created_at FROM sites WHERE id IN (SELECT site_id FROM site_members WHERE user_id = $1) ORDER BY created_at DESC"
+        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, COALESCE(blog_sort_order, 1) as blog_sort_order, landing_blocks, settings, created_at FROM sites WHERE id IN (SELECT site_id FROM site_members WHERE user_id = $1) ORDER BY created_at DESC"
     )
     .bind(current_user.user_id)
     .fetch_all(&state.db)
@@ -64,7 +64,7 @@ pub async fn get(
     require_site_member(&state, id, current_user.user_id).await?;
 
     let row = sqlx::query(
-        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, blog_sort_order, landing_blocks, settings, created_at FROM sites WHERE id = $1"
+        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, COALESCE(blog_sort_order, 1) as blog_sort_order, landing_blocks, settings, created_at FROM sites WHERE id = $1"
     )
     .bind(id)
     .fetch_one(&state.db)
@@ -109,14 +109,14 @@ pub async fn create(
     }
 
     // Validate URLs to prevent XSS
-    if let Some(url) = &payload.logo_url {
+    if let Some(ref url) = payload.logo_url {
         if !util::is_valid_url(url) {
             return Err(ApiError::new(
                 "Invalid logo URL: javascript: and data: URLs are not allowed",
             ));
         }
     }
-    if let Some(url) = &payload.favicon_url {
+    if let Some(ref url) = payload.favicon_url {
         if !util::is_valid_url(url) {
             return Err(ApiError::new(
                 "Invalid favicon URL: javascript: and data: URLs are not allowed",
@@ -128,7 +128,7 @@ pub async fn create(
     let custom_domain = payload.custom_domain.filter(|s| !s.is_empty());
 
     let row = sqlx::query(
-        "INSERT INTO sites (subdomain, custom_domain, name, description, logo_url, favicon_url, homepage_type, nav_links, blog_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, landing_blocks, settings, created_at, blog_path, blog_sort_order"
+        "INSERT INTO sites (subdomain, custom_domain, name, description, logo_url, favicon_url, homepage_type, nav_links, blog_path, blog_sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 2) RETURNING id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, COALESCE(blog_sort_order, 2) as blog_sort_order, landing_blocks, settings, created_at"
     )
     .bind(subdomain)
     .bind(custom_domain)
@@ -161,9 +161,9 @@ pub async fn create(
         {"block_type": "paragraph", "content": {"text": "Get in touch with us!"}}
     ]);
 
-    // Insert homepage page
+    // Insert homepage page with sort_order
     sqlx::query(
-        "INSERT INTO pages (site_id, title, slug, content, is_homepage) VALUES ($1, $2, $3, $4, $5)"
+        "INSERT INTO pages (site_id, title, slug, content, is_homepage, sort_order) VALUES ($1, $2, $3, $4, $5, 1)"
     )
     .bind(site_id)
     .bind("Home")
@@ -174,9 +174,9 @@ pub async fn create(
     .await
     .map_err(|e| ApiError::new(format!("Failed to create homepage: {}", e)))?;
 
-    // Insert About page
+    // Insert About page with sort_order
     sqlx::query(
-        "INSERT INTO pages (site_id, title, slug, content, is_homepage) VALUES ($1, $2, $3, $4, $5)"
+        "INSERT INTO pages (site_id, title, slug, content, is_homepage, sort_order) VALUES ($1, $2, $3, $4, $5, 2)"
     )
     .bind(site_id)
     .bind("About")
@@ -187,9 +187,9 @@ pub async fn create(
     .await
     .map_err(|e| ApiError::new(format!("Failed to create about page: {}", e)))?;
 
-    // Insert Contact page
+    // Insert Contact page with sort_order
     sqlx::query(
-        "INSERT INTO pages (site_id, title, slug, content, is_homepage) VALUES ($1, $2, $3, $4, $5)"
+        "INSERT INTO pages (site_id, title, slug, content, is_homepage, sort_order) VALUES ($1, $2, $3, $4, $5, 3)"
     )
     .bind(site_id)
     .bind("Contact")
@@ -301,11 +301,11 @@ pub async fn update(
             contact_address = COALESCE($14, contact_address),
             homepage_type = COALESCE($15, homepage_type),
             blog_path = $16,
-            landing_blocks = COALESCE($17, landing_blocks),
-            settings = COALESCE($18, settings),
-            blog_sort_order = $19
+            blog_sort_order = COALESCE($17, blog_sort_order),
+            landing_blocks = COALESCE($18, landing_blocks),
+            settings = COALESCE($19, settings)
          WHERE id = $1 
-         RETURNING id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, landing_blocks, settings, created_at, blog_sort_order"
+         RETURNING id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, COALESCE(blog_sort_order, 1) as blog_sort_order, landing_blocks, settings, created_at"
     )
     .bind(id)
     .bind(name)
@@ -323,9 +323,9 @@ pub async fn update(
     .bind(contact_address)
     .bind(homepage_type)
     .bind(blog_path)
+    .bind(blog_sort_order)
     .bind(landing_blocks)
     .bind(settings)
-    .bind(blog_sort_order)
     .fetch_one(&state.db)
     .await
     .map_err(|_| ApiError::new("Site not found"))?;
