@@ -9,7 +9,7 @@ use crate::{ApiError, AppState};
 use axum::{
     extract::{Path, State},
     http::HeaderMap,
-    routing::{delete, get, post, put},
+    routing::{get, post, put},
     Json, Router,
 };
 
