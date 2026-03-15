@@ -1,20 +1,93 @@
-{
-  "name": "Portfolio",
-  "description": "Visual-focused template with hero image and project grid",
-  "category": "portfolio",
-  "thumbnail_url": "",
-  "html_content": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>{% if title and title != site_name %}{{ title }} - {% endif %}{{ site_name }}</title>\n    {% if site_description %}<meta name=\"description\" content=\"{{ site_description }}\">{% endif %}\n    <link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css\">\n    <style>\n        :root {\n            --bg-color: var(--bg-color-light, #fafafa);\n            --text-color: var(--text-color-light, #1a1a1a);\n            --accent-color: {{ accent_color | default('#e11d48') }};\n            --nav-bg: transparent;\n            --nav-text: var(--text-color-light, #1a1a1a);\n            --card-bg: var(--card-bg-light, #ffffff);\n            --border-color: var(--border-color-light, #e5e5e5);\n        }\n        [data-theme=\"dark\"] {\n            --bg-color: #0a0a0a;\n            --text-color: #fafafa;\n            --nav-bg: transparent;\n            --nav-text: #fafafa;\n            --card-bg: #171717;\n            --border-color: #262626;\n        }\n        * { margin: 0; padding: 0; box-sizing: border-box; }\n        body {\n            font-family: {{ font_body | default('system-ui, -apple-system, sans-serif') }};\n            background: var(--bg-color);\n            color: var(--text-color);\n            line-height: 1.6;\n        }\n        a { color: var(--accent-color); text-decoration: none; }\n        a:hover { text-decoration: underline; }\n        \n        header {\n            position: fixed;\n            top: 0;\n            left: 0;\n            right: 0;\n            padding: 1.5rem 3rem;\n            display: flex;\n            justify-content: space-between;\n            align-items: center;\n            z-index: 100;\n            background: linear-gradient(to bottom, rgba(0,0,0,0.5), transparent);\n        }\n        [data-theme=\"dark\"] header {\n            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);\n        }\n        .logo {\n            font-size: 1.5rem;\n            font-weight: bold;\n            color: var(--nav-text);\n        }\n        nav ul {\n            display: flex;\n            list-style: none;\n            gap: 2rem;\n        }\n        nav a {\n            color: var(--nav-text);\n            font-weight: 500;\n        }\n        \n        .hero {\n            min-height: 100vh;\n            display: flex;\n            flex-direction: column;\n            justify-content: center;\n            align-items: center;\n            text-align: center;\n            padding: 2rem;\n            background: linear-gradient(135deg, #1a1a1a 0%, #4a1a2e 100%);\n            color: white;\n            position: relative;\n        }\n        [data-theme=\"light\"] .hero {\n            background: linear-gradient(135deg, #fafafa 0%, #e5e5e5 100%);\n            color: var(--text-color-light, #1a1a1a);\n        }\n        .hero-content {\n            max-width: 800px;\n        }\n        .hero h1 {\n            font-family: {{ font_heading | default('system-ui') }};\n            font-size: 4rem;\n            font-weight: 800;\n            margin-bottom: 1.5rem;\n            letter-spacing: -0.02em;\n        }\n        .hero p {\n            font-size: 1.5rem;\n            opacity: 0.9;\n            margin-bottom: 2rem;\n        }\n        .hero .cta {\n            display: inline-block;\n            background: var(--accent-color);\n            color: white;\n            padding: 1rem 2.5rem;\n            border-radius: 50px;\n            font-weight: 600;\n            font-size: 1.1rem;\n            transition: transform 0.2s, box-shadow 0.2s;\n        }\n        .hero .cta:hover {\n            transform: translateY(-2px);\n            box-shadow: 0 8px 24px rgba(225, 29, 72, 0.4);\n            text-decoration: none;\n        }\n        \n        section {\n            padding: 6rem 2rem;\n            max-width: 1400px;\n            margin: 0 auto;\n        }\n        .section-title {\n            font-family: {{ font_heading | default('system-ui') }};\n            font-size: 2.5rem;\n            text-align: center;\n            margin-bottom: 3rem;\n        }\n        \n        .projects-grid {\n            display: grid;\n            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));\n            gap: 2rem;\n        }\n        @media (max-width: 500px) {\n            .projects-grid { grid-template-columns: 1fr; }\n        }\n        .project-card {\n            background: var(--card-bg);\n            border: 1px solid var(--border-color);\n            border-radius: 16px;\n            overflow: hidden;\n            transition: transform 0.3s, box-shadow 0.3s;\n        }\n        .project-card:hover {\n            transform: translateY(-8px);\n            box-shadow: 0 20px 40px rgba(0,0,0,0.15);\n        }\n        .project-card img {\n            width: 100%;\n            height: 250px;\n            object-fit: cover;\n        }\n        .project-content {\n            padding: 2rem;\n        }\n        .project-card h3 {\n            font-family: {{ font_heading | default('system-ui') }};\n            font-size: 1.5rem;\n            margin-bottom: 0.5rem;\n        }\n        .project-card .category {\n            color: var(--accent-color);\n            font-size: 0.875rem;\n            font-weight: 600;\n            text-transform: uppercase;\n            letter-spacing: 0.05em;\n            margin-bottom: 1rem;\n        }\n        .project-card .description {\n            opacity: 0.8;\n            margin-bottom: 1.5rem;\n        }\n        .project-card .link {\n            font-weight: 600;\n        }\n        \n        .about-section {\n            display: grid;\n            grid-template-columns: 1fr 1fr;\n            gap: 4rem;\n            align-items: center;\n        }\n        @media (max-width: 768px) {\n            .about-section { grid-template-columns: 1fr; }\n        }\n        .about-image {\n            width: 100%;\n            height: 500px;\n            object-fit: cover;\n            border-radius: 16px;\n        }\n        .about-content h2 {\n            font-family: {{ font_heading | default('system-ui') }};\n            font-size: 2.5rem;\n            margin-bottom: 1.5rem;\n        }\n        .about-content p {\n            font-size: 1.1rem;\n            opacity: 0.8;\n            margin-bottom: 2rem;\n        }\n        .social-links {\n            display: flex;\n            gap: 1rem;\n        }\n        .social-links a {\n            width: 48px;\n            height: 48px;\n            display: flex;\n            align-items: center;\n            justify-content: center;\n            border-radius: 50%;\n            background: var(--card-bg);\n            border: 1px solid var(--border-color);\n            font-size: 1.25rem;\n        }\n        \n        footer {\n            background: var(--card-bg);\n            border-top: 1px solid var(--border-color);\n            padding: 4rem 2rem;\n            text-align: center;\n        }\n        footer p {\n            opacity: 0.6;\n        }\n    </style>\n</head>\n<body>\n    <header>\n        <a href=\"/\" class=\"logo\">{{ site_name }}</a>\n        <nav>\n            <ul>\n                {% for link in nav_links %}\n                <li><a href=\"{{ link.url }}\">{{ link.label }}</a></li>\n                {% endfor %}\n            </nav>\n        </header>\n    </header>\n    \n    <section class=\"hero\">\n        <div class=\"hero-content\">\n            <h1>{{ hero_title | default('Creative Developer') }}</h1>\n            <p>{{ hero_subtitle | default('Building beautiful digital experiences') }}</p>\n            {% if hero_cta_text %}\n            <a href=\"{{ hero_cta_link | default('/projects') }}\" class=\"cta\">{{ hero_cta_text }}</a>\n            {% endif %}\n        </div>\n    </section>\n    \n    <section>\n        <h2 class=\"section-title\">Featured Projects</h2>\n        <div class=\"projects-grid\">\n            {{ content | safe }}\n        </div>\n    </section>\n    \n    <section class=\"about-section\">\n        <img src=\"{{ about_image | default('https://picsum.photos/800/1000') }}\" alt=\"About\" class=\"about-image\">\n        <div class=\"about-content\">\n            <h2>About Me</h2>\n            <p>{{ about_text | default('I am a creative developer passionate about building beautiful, functional websites and applications. With expertise in modern web technologies, I transform ideas into digital reality.') }}</p>\n            <div class=\"social-links\">\n                <a href=\"#\"><i class=\"fab fa-github\"></i></a>\n                <a href=\"#\"><i class=\"fab fa-twitter\"></i></a>\n                <a href=\"#\"><i class=\"fab fa-linkedin\"></i></a>\n                <a href=\"#\"><i class=\"fas fa-envelope\"></i></a>\n            </div>\n        </div>\n    </section>\n    \n    <footer>\n        <p>&copy; 2026 {{ site_name }}. All rights reserved.</p>\n    </footer>\n</body>\n</html>",
-  "css_content": "",
-  "js_content": "",
-  "default_config": {
-    "accent_color": "#e11d48",
-    "font_heading": "system-ui",
-    "font_body": "system-ui, -apple-system, sans-serif",
-    "hero_title": "Creative Developer",
-    "hero_subtitle": "Building beautiful digital experiences",
-    "hero_cta_text": "View Projects",
-    "hero_cta_link": "/projects",
-    "about_image": "https://picsum.photos/800/1000",
-    "about_text": "I am a creative developer passionate about building beautiful, functional websites and applications."
-  }
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if title and title != site_name %}{{ title }} - {% endif %}{{ site_name }}</title>
+    {% if site_description %}<meta name="description" content="{{ site_description }}">{% endif %}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: var(--bg-color-light, #fafafa);
+            --text-color: var(--text-color-light, #1a1a1a);
+            --accent-color: {{ accent_color | default('#e11d48') }};
+            --nav-bg: transparent;
+            --nav-text: var(--text-color-light, #1a1a1a);
+            --card-bg: var(--card-bg-light, #ffffff);
+            --border-color: var(--border-color-light, #e5e5e5);
+        }
+        [data-theme="dark"] {
+            --bg-color: #0a0a0a;
+            --text-color: #fafafa;
+            --nav-bg: transparent;
+            --nav-text: #fafafa;
+            --card-bg: #171717;
+            --border-color: #262626;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: {{ font_body | default('system-ui, -apple-system, sans-serif') }}; background: var(--bg-color); color: var(--text-color); line-height: 1.6; }
+        a { color: var(--accent-color); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        header { position: fixed; top: 0; left: 0; right: 0; padding: 1.5rem 3rem; display: flex; justify-content: space-between; align-items: center; z-index: 100; background: linear-gradient(to bottom, rgba(0,0,0,0.5), transparent); }
+        [data-theme="light"] header { background: linear-gradient(to bottom, rgba(0,0,0,0.1), transparent); }
+        .logo { font-size: 1.5rem; font-weight: bold; color: var(--nav-text); }
+        nav ul { display: flex; list-style: none; gap: 2rem; }
+        nav a { color: var(--nav-text); font-weight: 500; }
+        .hero { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 2rem; background: linear-gradient(135deg, #1a1a1a 0%, #4a1a2e 100%); color: white; position: relative; }
+        [data-theme="light"] .hero { background: linear-gradient(135deg, #fafafa 0%, #e5e5e5 100%); color: var(--text-color-light, #1a1a1a); }
+        .hero-content { max-width: 800px; }
+        .hero h1 { font-family: {{ font_heading | default('system-ui') }}; font-size: 4rem; font-weight: 800; margin-bottom: 1.5rem; letter-spacing: -0.02em; }
+        .hero p { font-size: 1.5rem; opacity: 0.9; margin-bottom: 2rem; }
+        .hero .cta { display: inline-block; background: var(--accent-color); color: white; padding: 1rem 2.5rem; border-radius: 50px; font-weight: 600; font-size: 1.1rem; transition: transform 0.2s, box-shadow 0.2s; }
+        .hero .cta:hover { transform: translateY(-2px); text-decoration: none; }
+        section { padding: 6rem 2rem; max-width: 1400px; margin: 0 auto; }
+        .section-title { font-family: {{ font_heading | default('system-ui') }}; font-size: 2.5rem; text-align: center; margin-bottom: 3rem; }
+        .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 2rem; }
+        @media (max-width: 500px) { .projects-grid { grid-template-columns: 1fr; } }
+        .project-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; overflow: hidden; transition: transform 0.3s, box-shadow 0.3s; }
+        .project-card:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(0,0,0,0.15); }
+        .project-card img { width: 100%; height: 250px; object-fit: cover; }
+        .project-content { padding: 2rem; }
+        .project-card h3 { font-family: {{ font_heading | default('system-ui') }}; font-size: 1.5rem; margin-bottom: 0.5rem; }
+        .project-card .category { color: var(--accent-color); font-size: 0.875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; }
+        .project-card .description { opacity: 0.8; margin-bottom: 1.5rem; }
+        .project-card .link { font-weight: 600; }
+        .about-section { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; }
+        @media (max-width: 768px) { .about-section { grid-template-columns: 1fr; } }
+        .about-image { width: 100%; height: 500px; object-fit: cover; border-radius: 16px; }
+        .about-content h2 { font-family: {{ font_heading | default('system-ui') }}; font-size: 2.5rem; margin-bottom: 1.5rem; }
+        .about-content p { font-size: 1.1rem; opacity: 0.8; margin-bottom: 2rem; }
+        .social-links { display: flex; gap: 1rem; }
+        .social-links a { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--card-bg); border: 1px solid var(--border-color); font-size: 1.25rem; }
+        footer { background: var(--card-bg); border-top: 1px solid var(--border-color); padding: 4rem 2rem; text-align: center; }
+        footer p { opacity: 0.6; }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="/" class="logo">{{ site_name }}</a>
+        <nav><ul>{% for link in nav_links %}<li><a href="{{ link.url }}">{{ link.label }}</a></li>{% endfor %}</ul></nav>
+    </header>
+    {% if posts %}
+    <section class="hero"><div class="hero-content"><h1>Projects</h1><p>My latest work</p><a href="#projects" class="cta">View Projects</a></div></section>
+    <section id="projects"><h2 class="section-title">All Projects</h2><div class="projects-grid">
+    {% for post in posts %}
+        <article class="project-card">
+            {% if post.featured_image %}<img src="{{ post.featured_image }}" alt="{{ post.title }}">{% endif %}
+            <div class="project-content"><h3>{{ post.title }}</h3><p class="description">{{ post.excerpt | default('') }}</p><a href="/blog/{{ post.slug }}.html" class="link">View Project</a></div>
+        </article>
+    {% endfor %}
+    </div></section>
+    {% elif content %}
+    <section class="hero"><div class="hero-content"><h1>{{ hero_title | default('Creative Developer') }}</h1><p>{{ hero_subtitle | default('Building beautiful digital experiences') }}</p>{% if hero_cta_text %}<a href="{{ hero_cta_link | default('/projects') }}" class="cta">{{ hero_cta_text }}</a>{% endif %}</div></section>
+    <section>{{ content | safe }}</section>
+    {% else %}
+    <section class="hero"><div class="hero-content"><h1>{{ hero_title | default('Creative Developer') }}</h1><p>{{ hero_subtitle | default('Building beautiful digital experiences') }}</p>{% if hero_cta_text %}<a href="{{ hero_cta_link | default('/projects') }}" class="cta">{{ hero_cta_text }}</a>{% endif %}</div></section>
+    {% endif %}
+    <section class="about-section">
+        <img src="{{ about_image | default('https://picsum.photos/800/1000') }}" alt="About" class="about-image">
+        <div class="about-content"><h2>About Me</h2><p>{{ about_text | default('I am a creative developer passionate about building beautiful, functional websites and applications.') }}</p><div class="social-links"><a href="#"><i class="fab fa-github"></i></a><a href="#"><i class="fab fa-twitter"></i></a><a href="#"><i class="fab fa-linkedin"></i></a><a href="#"><i class="fas fa-envelope"></i></a></div></div>
+    </section>
+    <footer><p>&copy; 2026 {{ site_name }}. All rights reserved.</p></footer>
+</body>
+</html>
