@@ -206,7 +206,7 @@ pub async fn build_site(
     site_id: Uuid,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let site_row = sqlx::query(
-        "SELECT id, name, description, logo_url, favicon_url, footer_text, social_links, contact_phone, contact_email, contact_address, custom_domain, COALESCE(homepage_type, 'both') as homepage_type, COALESCE(blog_path, '/blog') as blog_path, COALESCE(blog_sort_order, 1) as blog_sort_order FROM sites WHERE id = $1"
+        "SELECT id, name, description, logo_url, favicon_url, footer_text, social_links, contact_phone, contact_email, contact_address, custom_domain, COALESCE(homepage_type, 'both') as homepage_type, COALESCE(blog_path, '/blog') as blog_path, COALESCE(blog_sort_order, 1) as blog_sort_order, template_id, COALESCE(theme, 'light') as theme, COALESCE(template_config, '{}'::jsonb) as template_config FROM sites WHERE id = $1"
     )
     .bind(site_id)
     .fetch_one(db)
@@ -228,6 +228,9 @@ pub async fn build_site(
     let homepage_type: Option<String> = site_row.get("homepage_type");
     let blog_path: Option<String> = site_row.get("blog_path");
     let blog_sort_order: i32 = site_row.get("blog_sort_order");
+    let template_id: Option<Uuid> = site_row.get("template_id");
+    let theme: String = site_row.get("theme");
+    let template_config: serde_json::Value = site_row.get("template_config");
     let homepage_type = homepage_type.unwrap_or_else(|| "both".to_string());
     let blog_path = blog_path.unwrap_or_else(|| "/blog".to_string());
 
@@ -305,9 +308,6 @@ pub async fn build_site(
     let mut template_page: Option<String> = None;
     let mut template_index: Option<String> = None;
 
-    // Skip database template loading for now - use file templates
-    // TODO: Re-enable after debugging
-    /*
     if let Some(tid) = template_id {
         match load_template_by_id(db, tid).await {
             Ok(db_template) => {
@@ -315,9 +315,7 @@ pub async fn build_site(
                 let theme_css = get_theme_css(&merged_config, &theme);
 
                 if let Some(html_content) = db_template.html_content {
-                    // Check if template uses markers (<!--TEMPLATE:xxx-->)
                     if html_content.contains("<!--TEMPLATE:") {
-                        // Multi-part template
                         for template_part in html_content.split("<!--TEMPLATE:").skip(1) {
                             if let Some((name, rest)) = template_part.split_once("-->") {
                                 let name = name.trim();
@@ -343,7 +341,6 @@ pub async fn build_site(
                             }
                         }
                     } else {
-                        // Single HTML template - use for all
                         let processed = inject_theme_vars(&html_content, &theme_css, &theme);
                         template_base = Some(processed.clone());
                         template_page = Some(processed.clone());
@@ -360,7 +357,6 @@ pub async fn build_site(
             }
         }
     }
-    */
 
     // Load file-based templates if no database templates
     if template_base.is_none() {
