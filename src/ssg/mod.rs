@@ -158,6 +158,7 @@ fn make_context(
     contact_phone: &Option<String>,
     contact_email: &Option<String>,
     contact_address: &Option<String>,
+    template_config: &serde_json::Value,
 ) -> Context {
     let mut ctx = Context::new();
     ctx.insert("site_name".into(), minijinja::Value::from(site_name));
@@ -185,6 +186,14 @@ fn make_context(
         "social_links".into(),
         minijinja::Value::from_serialize(social_links),
     );
+    
+    // Add template config values to context (hero_title, accent_color, etc.)
+    if let Some(obj) = template_config.as_object() {
+        for (key, value) in obj {
+            ctx.insert(key.clone(), minijinja::Value::from_serialize(value));
+        }
+    }
+
     ctx.insert(
         "contact_phone".into(),
         minijinja::Value::from_serialize(contact_phone),
@@ -313,11 +322,12 @@ pub async fn build_site(
     let mut template_page: Option<String> = None;
     let mut template_index: Option<String> = None;
 
-    if let Some(tid) = template_id {
+    // Merge template config with site config
+    let merged_config = if let Some(tid) = template_id {
         match load_template_by_id(db, tid).await {
             Ok(db_template) => {
-                let merged_config = merge_configs(&db_template.default_config, &template_config);
-                let theme_css = get_theme_css(&merged_config, &theme);
+                let merged = merge_configs(&db_template.default_config, &template_config);
+                let theme_css = get_theme_css(&merged, &theme);
 
                 if let Some(html_content) = db_template.html_content {
                     if html_content.contains("<!--TEMPLATE:") {
@@ -353,6 +363,7 @@ pub async fn build_site(
                         template_index = Some(processed);
                     }
                 }
+                merged
             }
             Err(e) => {
                 tracing::warn!(
@@ -360,9 +371,12 @@ pub async fn build_site(
                     tid,
                     e
                 );
+                serde_json::Value::Object(serde_json::Map::new())
             }
         }
-    }
+    } else {
+        serde_json::Value::Object(serde_json::Map::new())
+    };
 
     // Load file-based templates if no database templates
     if template_base.is_none() {
@@ -527,6 +541,7 @@ pub async fn build_site(
         &contact_phone,
         &contact_email,
         &contact_address,
+        &template_config,
     );
     ctx.insert(
         "posts".into(),
@@ -555,6 +570,7 @@ pub async fn build_site(
             &contact_phone,
             &contact_email,
             &contact_address,
+            &merged_config,
         );
         post_ctx.insert("title".into(), minijinja::Value::from(post.0.clone()));
         post_ctx.insert("slug".into(), minijinja::Value::from(post.1.clone()));
@@ -600,6 +616,7 @@ pub async fn build_site(
             &contact_phone,
             &contact_email,
             &contact_address,
+            &merged_config,
         );
         page_ctx.insert("title".into(), minijinja::Value::from(home.0.clone()));
         page_ctx.insert("slug".into(), minijinja::Value::from(home.1.clone()));
@@ -626,6 +643,7 @@ pub async fn build_site(
             &contact_phone,
             &contact_email,
             &contact_address,
+            &merged_config,
         );
         blog_ctx.insert("title".into(), minijinja::Value::from("Blog"));
         blog_ctx.insert("slug".into(), minijinja::Value::from("blog"));
@@ -659,6 +677,7 @@ pub async fn build_site(
             &contact_phone,
             &contact_email,
             &contact_address,
+            &merged_config,
         );
         page_ctx.insert("title".into(), minijinja::Value::from(page.0.clone()));
         page_ctx.insert("slug".into(), minijinja::Value::from(page.1.clone()));
