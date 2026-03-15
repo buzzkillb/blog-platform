@@ -6,6 +6,13 @@
     <title>Blog Platform Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
     <style>
         body { background-color: #0d1117; color: #c9d1d9; }
         .card { background-color: #161b22; border: 1px solid #30363d; }
@@ -2077,6 +2084,10 @@
 
         // TEMPLATES
         let currentTemplateTab = 'select';
+        let templateEditor = null;
+        let templateCodeState = { html: '', css: '', js: '' };
+        let templateOriginalCode = { html: '', css: '', js: '' };
+        let currentCodeTab = 'html';
         let templatesList = [];
         let selectedTemplate = null;
         let templateConfig = { colors: {}, typography: {}, hero: {}, layout: {}, advanced: {} };
@@ -2132,12 +2143,7 @@
                     </div>
                 `;
             } else if (currentTemplateTab === 'code') {
-                return `
-                    <div class="card p-6 rounded-lg">
-                        <h2 class="text-xl font-bold text-white mb-4">Template Code</h2>
-                        <p class="text-gray-400">Custom template code editor will appear here.</p>
-                    </div>
-                `;
+                return renderTemplateCodeView();
             }
             return '';
         }
@@ -2166,6 +2172,10 @@
             if (!currentSite) return;
             if (currentTemplateTab === 'visual') {
                 await loadTemplateCustomizeSettings();
+                return;
+            }
+            if (currentTemplateTab === 'code') {
+                await loadTemplateCode();
                 return;
             }
             try {
@@ -2261,6 +2271,267 @@
                     showToast('Failed to activate template', 'error');
                 }
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }
+
+        // Template Code Editor Functions
+        function renderTemplateCodeView() {
+            return `
+                <div class="flex flex-col h-full">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-white">Code Editor</h2>
+                        <div class="flex gap-2">
+                            <input type="file" id="code-import-input" class="hidden" accept=".html,.css,.js" onchange="handleCodeImport(event)">
+                            <button onclick="document.getElementById('code-import-input').click()" class="btn-secondary text-white px-3 py-1 rounded text-sm">
+                                <i class="fas fa-upload"></i> Import
+                            </button>
+                            <button onclick="exportTemplateCode()" class="btn-secondary text-white px-3 py-1 rounded text-sm">
+                                <i class="fas fa-download"></i> Export
+                            </button>
+                            <button onclick="resetTemplateCode()" class="btn-secondary text-white px-3 py-1 rounded text-sm">
+                                <i class="fas fa-undo"></i> Reset
+                            </button>
+                            <button onclick="saveTemplateCode()" class="btn-primary text-white px-3 py-1 rounded text-sm">
+                                <i class="fas fa-save"></i> Save
+                            </button>
+                        </div>
+                    </div>
+                    ${renderCodeTabBar()}
+                    <div class="flex flex-1 gap-4 mt-4" style="height: calc(100vh - 320px);">
+                        <div class="w-1/2 bg-gray-900 rounded-lg overflow-hidden">
+                            <textarea id="template-code-editor"></textarea>
+                        </div>
+                        <div class="w-1/2 bg-white rounded-lg overflow-hidden">
+                            <div class="bg-gray-800 px-3 py-2 text-gray-400 text-sm border-b border-gray-700">Preview</div>
+                            <iframe id="code-preview-frame" class="w-full h-full"></iframe>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderCodeTabBar() {
+            const tabs = [
+                { id: 'html', label: 'HTML' },
+                { id: 'css', label: 'CSS' },
+                { id: 'js', label: 'JavaScript' }
+            ];
+            return `
+                <div class="flex gap-1 bg-gray-800 rounded-t-lg p-1">
+                    ${tabs.map(tab => `
+                        <button onclick="switchCodeTab('${tab.id}')" 
+                            class="px-4 py-2 rounded text-sm ${currentCodeTab === tab.id ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}">
+                            ${tab.label}
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function switchCodeTab(tab) {
+            currentCodeTab = tab;
+            if (templateEditor) {
+                templateEditor.setValue(templateCodeState[tab] || '');
+                const mode = tab === 'html' ? 'htmlmixed' : tab;
+                templateEditor.setOption('mode', mode);
+            }
+            render();
+        }
+
+        async function initTemplateCodeEditor() {
+            const textarea = document.getElementById('template-code-editor');
+            if (!textarea) return;
+            
+            if (templateEditor) {
+                templateEditor.toTextArea();
+            }
+            
+            templateEditor = CodeMirror.fromTextArea(textarea, {
+                mode: 'htmlmixed',
+                theme: 'dracula',
+                lineNumbers: true,
+                lineWrapping: true,
+                autoCloseTags: true,
+                autoCloseBrackets: true
+            });
+            
+            templateEditor.on('change', () => {
+                templateCodeState[currentCodeTab] = templateEditor.getValue();
+            });
+            
+            templateEditor.setValue(templateCodeState[currentCodeTab] || '');
+            updateCodePreview();
+        }
+
+        async function loadTemplateCode() {
+            if (!currentSite) return;
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/template-code', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    templateCodeState = {
+                        html: data.html || '',
+                        css: data.css || '',
+                        js: data.js || ''
+                    };
+                    templateOriginalCode = { ...templateCodeState };
+                } else {
+                    templateCodeState = {
+                        html: '<html>\n<head>\n  <title>Template</title>\n</head>\n<body>\n  <div id="app"></div>\n</body>\n</html>',
+                        css: 'body {\n  font-family: sans-serif;\n}',
+                        js: 'console.log("Hello World");'
+                    };
+                    templateOriginalCode = { ...templateCodeState };
+                }
+                
+                setTimeout(() => {
+                    initTemplateCodeEditor();
+                }, 100);
+            } catch (err) {
+                console.error('Error loading template code:', err);
+                templateCodeState = {
+                    html: '<html>\n<head>\n  <title>Template</title>\n</head>\n<body>\n  <div id="app"></div>\n</body>\n</html>',
+                    css: 'body {\n  font-family: sans-serif;\n}',
+                    js: 'console.log("Hello World");'
+                };
+                templateOriginalCode = { ...templateCodeState };
+                setTimeout(() => {
+                    initTemplateCodeEditor();
+                }, 100);
+            }
+        }
+
+        async function saveTemplateCode() {
+            if (!currentSite) return;
+            
+            if (!validateTemplateCode()) {
+                return;
+            }
+            
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/template-code', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify(templateCodeState)
+                });
+                if (res.ok) {
+                    templateOriginalCode = { ...templateCodeState };
+                    showToast('Template code saved!');
+                } else {
+                    showToast('Failed to save template code', 'error');
+                }
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            }
+        }
+
+        function discardTemplateCode() {
+            templateCodeState = { ...templateOriginalCode };
+            if (templateEditor) {
+                templateEditor.setValue(templateCodeState[currentCodeTab] || '');
+            }
+            showToast('Changes discarded');
+            render();
+        }
+
+        function exportTemplateCode() {
+            const htmlBlob = new Blob([templateCodeState.html], { type: 'text/html' });
+            const cssBlob = new Blob([templateCodeState.css], { type: 'text/css' });
+            const jsBlob = new Blob([templateCodeState.js], { type: 'text/javascript' });
+            
+            const htmlLink = document.createElement('a');
+            htmlLink.href = URL.createObjectURL(htmlBlob);
+            htmlLink.download = 'template.html';
+            htmlLink.click();
+            
+            const cssLink = document.createElement('a');
+            cssLink.href = URL.createObjectURL(cssBlob);
+            cssLink.download = 'template.css';
+            cssLink.click();
+            
+            const jsLink = document.createElement('a');
+            jsLink.href = URL.createObjectURL(jsBlob);
+            jsLink.download = 'template.js';
+            jsLink.click();
+            
+            showToast('Template exported!');
+        }
+
+        function importTemplateCode() {
+            document.getElementById('code-import-input').click();
+        }
+
+        function handleCodeImport(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+            
+            let htmlCount = 0, cssCount = 0, jsCount = 0;
+            
+            for (const file of files) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const content = e.target.result;
+                    if (file.name.endsWith('.html')) {
+                        templateCodeState.html = content;
+                        htmlCount++;
+                    } else if (file.name.endsWith('.css')) {
+                        templateCodeState.css = content;
+                        cssCount++;
+                    } else if (file.name.endsWith('.js')) {
+                        templateCodeState.js = content;
+                        jsCount++;
+                    }
+                    
+                    if (htmlCount + cssCount + jsCount === files.length) {
+                        if (templateEditor) {
+                            templateEditor.setValue(templateCodeState[currentCodeTab] || '');
+                        }
+                        updateCodePreview();
+                        showToast('Code imported!');
+                    }
+                };
+                reader.readAsText(file);
+            }
+            event.target.value = '';
+        }
+
+        function updateCodePreview() {
+            const previewFrame = document.getElementById('code-preview-frame');
+            if (!previewFrame) return;
+            
+            const html = templateCodeState.html;
+            const css = templateCodeState.css;
+            const js = templateCodeState.js;
+            
+            const fullHtml = html.replace('</head>', `<style>${css}</style></head>`)
+                                 .replace('</body>', `<script>${js}</script></body>`);
+            
+            previewFrame.srcdoc = fullHtml;
+        }
+
+        function validateTemplateCode() {
+            if (!templateCodeState.html || templateCodeState.html.trim() === '') {
+                showToast('HTML code is required', 'error');
+                return false;
+            }
+            return true;
+        }
+
+        function resetTemplateCode() {
+            templateCodeState = {
+                html: '<html>\n<head>\n  <title>Template</title>\n</head>\n<body>\n  <div id="app"></div>\n</body>\n</html>',
+                css: 'body {\n  font-family: sans-serif;\n}',
+                js: 'console.log("Hello World");'
+            };
+            if (templateEditor) {
+                templateEditor.setValue(templateCodeState[currentCodeTab] || '');
+            }
+            updateCodePreview();
+            showToast('Code reset to default');
         }
 
         // Visual Customizer Functions
