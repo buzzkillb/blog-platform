@@ -526,6 +526,9 @@
                                 <button onclick="switchView('settings')" class="w-full text-left px-4 py-2 rounded ${currentView==='settings'?'bg-gray-700 text-white':'text-gray-400 hover:bg-gray-700'}">
                                     <i class="fas fa-cog w-6"></i> Settings
                                 </button>
+                                <button onclick="switchView('templates')" class="w-full text-left px-4 py-2 rounded ${currentView==='templates'?'bg-gray-700 text-white':'text-gray-400 hover:bg-gray-700'}">
+                                    <i class="fas fa-palette w-6"></i> Templates
+                                </button>
                                 <button onclick="switchView('posts')" class="w-full text-left px-4 py-2 rounded ${currentView==='posts'?'bg-gray-700 text-white':'text-gray-400 hover:bg-gray-700'}">
                                     <i class="fas fa-file-text w-6"></i> Posts
                                 </button>
@@ -541,7 +544,7 @@
                             </nav>
                         </aside>
                         <main class="flex-1 p-6">
-                            ${currentView==='settings'?renderSettings():currentView==='sites'?renderSitesInDashboard():currentView==='posts'?renderPosts():currentView==='pages'?renderPages():currentView==='media'?renderMedia():renderContact()}
+                            ${currentView==='settings'?renderSettings():currentView==='sites'?renderSitesInDashboard():currentView==='posts'?renderPosts():currentView==='pages'?renderPages():currentView==='media'?renderMedia():currentView==='templates'?renderTemplateSelector():renderContact()}
                         </main>
                     </div>
                 </div>
@@ -559,6 +562,7 @@
             else if (currentView === 'posts') loadPosts();
             else if (currentView === 'pages') loadPages();
             else if (currentView === 'media') loadMedia();
+            else if (currentView === 'templates') loadTemplates();
             else if (currentView === 'contact') loadContact();
         }
 
@@ -2069,6 +2073,185 @@
                     }
                 }
             } catch (err) { console.error(err); }
+        }
+
+        // TEMPLATES
+        let currentTemplateTab = 'select';
+        let templatesList = [];
+        let selectedTemplate = null;
+
+        function renderTemplateSelector() {
+            return `
+                <div>
+                    <h1 class="text-2xl font-bold text-white mb-6">Templates</h1>
+                    <div class="flex gap-4 mb-6">
+                        ${renderTemplateTabs()}
+                    </div>
+                    <div id="template-content">
+                        ${renderTemplateSelectorView()}
+                    </div>
+                    ${renderTemplatePreviewModal()}
+                </div>
+            `;
+        }
+
+        function renderTemplateTabs() {
+            const tabs = [
+                { id: 'select', label: 'Select', icon: 'fa-th' },
+                { id: 'customize', label: 'Customize', icon: 'fa-cogs' },
+                { id: 'code', label: 'Code', icon: 'fa-code' }
+            ];
+            return tabs.map(tab => `
+                <button onclick="switchTemplateTab('${tab.id}')" 
+                    class="px-4 py-2 rounded ${currentTemplateTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}">
+                    <i class="fas ${tab.icon} w-4"></i> ${tab.label}
+                </button>
+            `).join('');
+        }
+
+        function switchTemplateTab(tabId) {
+            currentTemplateTab = tabId;
+            render();
+        }
+
+        function renderTemplateSelectorView() {
+            if (currentTemplateTab === 'select') {
+                return `
+                    <div id="templates-grid" class="grid grid-cols-3 gap-6"></div>
+                `;
+            } else if (currentTemplateTab === 'customize') {
+                return `
+                    <div class="card p-6 rounded-lg">
+                        <h2 class="text-xl font-bold text-white mb-4">Customize Template</h2>
+                        <p class="text-gray-400">Template customization options will appear here.</p>
+                    </div>
+                `;
+            } else if (currentTemplateTab === 'code') {
+                return `
+                    <div class="card p-6 rounded-lg">
+                        <h2 class="text-xl font-bold text-white mb-4">Template Code</h2>
+                        <p class="text-gray-400">Custom template code editor will appear here.</p>
+                    </div>
+                `;
+            }
+            return '';
+        }
+
+        function renderTemplatePreviewModal() {
+            return `
+                <div id="template-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-gray-800 rounded-lg w-4/5 h-4/5 flex flex-col">
+                        <div class="flex justify-between items-center p-4 border-b border-gray-700">
+                            <h3 class="text-white font-bold" id="modal-template-name">Template Preview</h3>
+                            <button onclick="closeTemplateModal()" class="text-gray-400 hover:text-white text-xl">&times;</button>
+                        </div>
+                        <div class="flex-1 p-4">
+                            <iframe id="template-preview-frame" class="w-full h-full bg-white rounded" src=""></iframe>
+                        </div>
+                        <div class="flex justify-end gap-2 p-4 border-t border-gray-700">
+                            <button onclick="closeTemplateModal()" class="btn-secondary text-white px-4 py-2 rounded">Close</button>
+                            <button onclick="activateTemplateFromModal()" class="btn-primary text-white px-4 py-2 rounded">Activate</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadTemplates() {
+            if (!currentSite) return;
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite, {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                const site = res.ok ? await res.json() : {};
+                const currentTemplateId = site.template_id || 'default';
+
+                const templatesRes = await fetch(API_BASE + '/api/templates', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                
+                if (templatesRes.ok) {
+                    templatesList = await templatesRes.json();
+                } else {
+                    templatesList = [
+                        { id: 'default', name: 'Default', description: 'Clean minimalist blog theme', thumbnail: '' },
+                        { id: 'modern', name: 'Modern', description: 'Sleek modern design with bold typography', thumbnail: '' },
+                        { id: 'classic', name: 'Classic', description: 'Traditional blog layout', thumbnail: '' },
+                        { id: 'minimal', name: 'Minimal', description: 'Ultra-clean minimal design', thumbnail: '' },
+                        { id: 'portfolio', name: 'Portfolio', description: 'Showcase your work beautifully', thumbnail: '' },
+                        { id: 'magazine', name: 'Magazine', content: 'Multi-column magazine style', thumbnail: '' }
+                    ];
+                }
+
+                const grid = document.getElementById('templates-grid');
+                if (grid) {
+                    grid.innerHTML = templatesList.map(t => `
+                        <div class="card rounded-lg overflow-hidden ${t.id === currentTemplateId ? 'ring-2 ring-green-500' : ''}">
+                            <div class="aspect-video bg-gray-700 flex items-center justify-center">
+                                ${t.thumbnail ? `<img src="${t.thumbnail}" class="w-full h-full object-cover">` : '<i class="fas fa-palette text-4xl text-gray-500"></i>'}
+                            </div>
+                            <div class="p-4">
+                                <div class="flex justify-between items-start mb-2">
+                                    <h3 class="text-white font-bold">${escapeHtml(t.name)}</h3>
+                                    ${t.id === currentTemplateId ? '<span class="bg-green-600 text-white text-xs px-2 py-1 rounded">Active</span>' : ''}
+                                </div>
+                                <p class="text-gray-400 text-sm mb-4">${escapeHtml(t.description || '')}</p>
+                                <div class="flex gap-2">
+                                    <button onclick="previewTemplate('${t.id}')" class="btn-secondary text-white px-3 py-1 rounded text-sm flex-1">
+                                        <i class="fas fa-eye"></i> Preview
+                                    </button>
+                                    ${t.id !== currentTemplateId ? `<button onclick="activateTemplate('${t.id}')" class="btn-primary text-white px-3 py-1 rounded text-sm flex-1">
+                                        <i class="fas fa-check"></i> Activate
+                                    </button>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function previewTemplate(templateId) {
+            const template = templatesList.find(t => t.id === templateId);
+            if (!template) return;
+            
+            selectedTemplate = template;
+            document.getElementById('modal-template-name').textContent = template.name + ' Preview';
+            document.getElementById('template-preview-frame').src = '/preview/' + templateId;
+            document.getElementById('template-modal').classList.remove('hidden');
+        }
+
+        function closeTemplateModal() {
+            document.getElementById('template-modal').classList.add('hidden');
+            document.getElementById('template-preview-frame').src = '';
+            selectedTemplate = null;
+        }
+
+        function activateTemplateFromModal() {
+            if (selectedTemplate) {
+                activateTemplate(selectedTemplate.id);
+                closeTemplateModal();
+            }
+        }
+
+        async function activateTemplate(templateId) {
+            if (!currentSite) return;
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite, {
+                    method: 'PUT',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify({ template_id: templateId })
+                });
+                if (res.ok) {
+                    showToast('Template activated!');
+                    loadTemplates();
+                } else {
+                    showToast('Failed to activate template', 'error');
+                }
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
         }
 
         // Start
