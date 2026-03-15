@@ -613,6 +613,38 @@ pub async fn build_site(
         std::fs::write(output_dir.join("index.html"), page_html)?;
     }
 
+    // Generate blog index page if homepage_type is "blog" or "both"
+    if homepage_type == "blog" || homepage_type == "both" {
+        let mut blog_ctx = make_context(
+            &site_name,
+            &site_description,
+            &logo_url,
+            &favicon_url,
+            &nav_links,
+            &footer_text,
+            &social_links,
+            &contact_phone,
+            &contact_email,
+            &contact_address,
+        );
+        blog_ctx.insert("title".into(), minijinja::Value::from("Blog"));
+        blog_ctx.insert("slug".into(), minijinja::Value::from("blog"));
+        blog_ctx.insert("url".into(), minijinja::Value::from("/blog"));
+        blog_ctx.insert(
+            "posts".into(),
+            minijinja::Value::from_serialize(&posts_data),
+        );
+        
+        // Use index template for blog listing if available, else page template
+        let blog_template = if env.get_template("index.html").is_ok() {
+            env.get_template("index.html")?
+        } else {
+            env.get_template("page.html")?
+        };
+        let blog_html = blog_template.render(&blog_ctx)?;
+        std::fs::write(output_dir.join("blog.html"), blog_html)?;
+    }
+
     for page in other_pages {
         let is_blog = page.1 == "blog";
 
