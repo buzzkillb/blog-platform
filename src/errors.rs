@@ -125,3 +125,44 @@ pub struct UpdatePageRequest {
     pub sort_order: Option<i32>,
     pub seo: Option<serde_json::Value>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateTemplateRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub thumbnail_url: Option<String>,
+    pub html_content: Option<String>,
+    pub css_content: Option<String>,
+    pub js_content: Option<String>,
+    pub default_config: Option<serde_json::Value>,
+    pub is_builtin: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateTemplateRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub thumbnail_url: Option<String>,
+    pub html_content: Option<String>,
+    pub css_content: Option<String>,
+    pub js_content: Option<String>,
+    pub default_config: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateResponse {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub thumbnail_url: Option<String>,
+    pub html_content: Option<String>,
+    pub css_content: Option<String>,
+    pub js_content: Option<String>,
+    pub default_config: serde_json::Value,
+    pub is_builtin: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}

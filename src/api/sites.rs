@@ -19,7 +19,7 @@ pub async fn list(
     let current_user = require_auth(State(state.clone()), headers).await?;
 
     let rows = sqlx::query(
-        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, COALESCE(blog_sort_order, 1) as blog_sort_order, landing_blocks, settings, created_at FROM sites WHERE id IN (SELECT site_id FROM site_members WHERE user_id = $1) ORDER BY created_at DESC"
+        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, COALESCE(blog_sort_order, 1) as blog_sort_order, landing_blocks, settings, template_id, COALESCE(template_config, '{}'::jsonb) as template_config, created_at FROM sites WHERE id IN (SELECT site_id FROM site_members WHERE user_id = $1) ORDER BY created_at DESC"
     )
     .bind(current_user.user_id)
     .fetch_all(&state.db)
@@ -48,6 +48,8 @@ pub async fn list(
             blog_sort_order: row.get("blog_sort_order"),
             landing_blocks: row.get("landing_blocks"),
             settings: row.get("settings"),
+            template_id: row.get("template_id"),
+            template_config: row.get("template_config"),
             created_at: row.get("created_at"),
         });
     }
@@ -64,7 +66,7 @@ pub async fn get(
     require_site_member(&state, id, current_user.user_id).await?;
 
     let row = sqlx::query(
-        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, COALESCE(blog_sort_order, 1) as blog_sort_order, landing_blocks, settings, created_at FROM sites WHERE id = $1"
+        "SELECT id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, COALESCE(blog_sort_order, 1) as blog_sort_order, landing_blocks, settings, template_id, COALESCE(template_config, '{}'::jsonb) as template_config, created_at FROM sites WHERE id = $1"
     )
     .bind(id)
     .fetch_one(&state.db)
@@ -91,6 +93,8 @@ pub async fn get(
         blog_sort_order: row.get("blog_sort_order"),
         landing_blocks: row.get("landing_blocks"),
         settings: row.get("settings"),
+        template_id: row.get("template_id"),
+        template_config: row.get("template_config"),
         created_at: row.get("created_at"),
     };
 
@@ -128,7 +132,7 @@ pub async fn create(
     let custom_domain = payload.custom_domain.filter(|s| !s.is_empty());
 
     let row = sqlx::query(
-        "INSERT INTO sites (subdomain, custom_domain, name, description, logo_url, favicon_url, homepage_type, nav_links, blog_path, blog_sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 2) RETURNING id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, COALESCE(blog_sort_order, 2) as blog_sort_order, landing_blocks, settings, created_at"
+        "INSERT INTO sites (subdomain, custom_domain, name, description, logo_url, favicon_url, homepage_type, nav_links, blog_path, blog_sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 2) RETURNING id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, COALESCE(blog_sort_order, 2) as blog_sort_order, landing_blocks, settings, template_id, COALESCE(template_config, '{}'::jsonb) as template_config, created_at"
     )
     .bind(subdomain)
     .bind(custom_domain)
@@ -228,6 +232,8 @@ pub async fn create(
         blog_sort_order: row.get("blog_sort_order"),
         landing_blocks: row.get("landing_blocks"),
         settings: row.get("settings"),
+        template_id: row.get("template_id"),
+        template_config: row.get("template_config"),
         created_at: row.get("created_at"),
     };
 
@@ -305,7 +311,7 @@ pub async fn update(
             landing_blocks = COALESCE($18, landing_blocks),
             settings = COALESCE($19, settings)
          WHERE id = $1 
-         RETURNING id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, COALESCE(blog_sort_order, 1) as blog_sort_order, landing_blocks, settings, created_at"
+         RETURNING id, subdomain, custom_domain, name, description, logo_url, favicon_url, theme, nav_links, footer_text, social_links, contact_phone, contact_email, contact_address, homepage_type, blog_path, COALESCE(blog_sort_order, 1) as blog_sort_order, landing_blocks, settings, template_id, COALESCE(template_config, '{}'::jsonb) as template_config, created_at"
     )
     .bind(id)
     .bind(name)
@@ -350,6 +356,8 @@ pub async fn update(
         blog_sort_order: row.get("blog_sort_order"),
         landing_blocks: row.get("landing_blocks"),
         settings: row.get("settings"),
+        template_id: row.get("template_id"),
+        template_config: row.get("template_config"),
         created_at: row.get("created_at"),
     }))
 }

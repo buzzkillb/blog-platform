@@ -4,10 +4,11 @@ mod state;
 mod util;
 
 pub use errors::{
-    ApiError, CreatePageRequest, CreatePostRequest, CreateSiteRequest, CreateUserRequest,
-    LoginRequest, LoginResponse, UpdatePageRequest, UpdatePostRequest, UserResponse,
+    ApiError, CreatePageRequest, CreatePostRequest, CreateSiteRequest, CreateTemplateRequest,
+    CreateUserRequest, LoginRequest, LoginResponse, TemplateResponse, UpdatePageRequest,
+    UpdatePostRequest, UpdateTemplateRequest, UserResponse,
 };
-pub use models::{ContactSubmission, Media, Page, Post, Site, User};
+pub use models::{ContactSubmission, Media, Page, Post, Site, Template, TemplateListItem, User};
 pub use state::AppState;
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Router};
@@ -431,6 +432,39 @@ async fn run_migrations(db: &sqlx::PgPool) {
     .execute(db)
     .await
     .ok();
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS templates (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name VARCHAR(255) NOT NULL,
+            description TEXT,
+            category VARCHAR(100),
+            thumbnail_url VARCHAR(1000),
+            html_content TEXT,
+            css_content TEXT,
+            js_content TEXT,
+            default_config JSONB DEFAULT '{}',
+            is_builtin BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )",
+    )
+    .execute(db)
+    .await
+    .expect("Failed to create templates table");
+
+    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS template_id UUID REFERENCES templates(id)")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS template_config JSONB DEFAULT '{}'")
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS theme VARCHAR(100) DEFAULT 'light'")
+        .execute(db)
+        .await
+        .ok();
 }
 
 async fn seed_default_pages(db: &sqlx::PgPool) {

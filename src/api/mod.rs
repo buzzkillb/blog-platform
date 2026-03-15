@@ -3,12 +3,13 @@ pub mod media;
 pub mod pages;
 pub mod posts;
 pub mod sites;
+pub mod templates;
 
 use crate::{ApiError, AppState};
 use axum::{
     extract::{Path, State},
     http::HeaderMap,
-    routing::{get, post},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 
@@ -57,6 +58,20 @@ pub fn routes() -> Router<crate::AppState> {
         )
         .route("/api/sites/{site_id}/build", post(build_site))
         .route("/api/sites/{site_id}/deploy", post(deploy_pages))
+        .route("/api/templates", get(templates::list_templates).post(templates::create_template))
+        .route(
+            "/api/templates/{id}",
+            get(templates::get_template).put(templates::update_template).delete(templates::delete_template),
+        )
+        .route(
+            "/api/sites/{site_id}/template",
+            get(templates::get_site_template).put(templates::assign_template),
+        )
+        .route("/api/sites/{site_id}/theme", put(templates::update_theme))
+        .route(
+            "/api/sites/{site_id}/template-config",
+            put(templates::update_template_config),
+        )
 }
 
 async fn build_site(

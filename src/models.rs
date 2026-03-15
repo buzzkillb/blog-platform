@@ -23,6 +23,8 @@ pub struct Site {
     pub blog_sort_order: i32,
     pub landing_blocks: serde_json::Value,
     pub settings: serde_json::Value,
+    pub template_id: Option<Uuid>,
+    pub template_config: serde_json::Value,
     pub created_at: DateTime<Utc>,
 }
 
@@ -89,6 +91,32 @@ pub struct ContactSubmission {
     pub read: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Template {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub thumbnail_url: Option<String>,
+    pub html_content: Option<String>,
+    pub css_content: Option<String>,
+    pub js_content: Option<String>,
+    pub default_config: serde_json::Value,
+    pub is_builtin: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateListItem {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub thumbnail_url: Option<String>,
+    pub is_builtin: bool,
+}
+
 // ============================================================================
 // SQL Query Row Types
 // These type aliases are used with sqlx::query_as to map SQL results to tuples
@@ -144,3 +172,21 @@ pub type MediaRow = (
 /// Row type for ContactSubmission queries: SELECT id, site_id, name, email,
 /// message, created_at, read
 pub type ContactSubmissionRow = (Uuid, Uuid, String, String, String, DateTime<Utc>, bool);
+
+/// Row type for Template queries: SELECT id, name, description, category,
+/// thumbnail_url, html_content, css_content, js_content, default_config,
+/// is_builtin, created_at, updated_at
+pub type TemplateRow = (
+    Uuid,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    serde_json::Value,
+    bool,
+    DateTime<Utc>,
+    DateTime<Utc>,
+);
