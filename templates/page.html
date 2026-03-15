@@ -4,7 +4,7 @@
 <article class="prose">
     {% if is_blog_post %}
     <nav class="breadcrumbs">
-        <a href="/">Home</a> <span class="separator">›</span> <a href="/blog.html">Blog</a> <span class="separator">›</span> <span class="current">{{ title }}</span>
+        <a href="/">Home</a> <span class="separator">›</span> <a href="/blog">Blog</a> <span class="separator">›</span> <span class="current">{{ title }}</span>
     </nav>
     {% endif %}
     
@@ -15,7 +15,7 @@
             {% for post in posts %}
             <article class="post-card">
                 <h2>
-                    <a href="/blog/{{ post.slug }}.html">{{ post.title }}</a>
+                    <a href="/blog/{{ post.slug }}">{{ post.title }}</a>
                 </h2>
                 {% if post.excerpt %}<p class="excerpt">{{ post.excerpt }}</p>{% endif %}
                 <small class="date">{{ post.published_at }}</small>

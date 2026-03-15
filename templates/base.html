@@ -4,73 +4,51 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% if title and title != site_name %}{{ title }} - {% endif %}{{ site_name }}</title>
-    {% if meta_description %}<meta name="description" content="{{ meta_description }}">{% elif site_description %}<meta name="description" content="{{ site_description }}">{% endif %}
+    {% if site_description %}<meta name="description" content="{{ site_description }}">{% endif %}
     <meta name="generator" content="Blog Platform">
-    {% if favicon_url %}<link rel="icon" type="image/x-icon" href="{{ favicon_url }}">{% endif %}
-    {% if logo_url %}<link rel="icon" type="image/png" href="{{ logo_url }}">{% endif %}
-    <link rel="canonical" href="{{ url | safe }}">
+    {% if favicon_url %}<link rel="icon" type="image/x-icon" href="{{ favicon_url | safe }}">{% endif %}
+    {% if logo_url %}<link rel="icon" type="image/png" href="{{ logo_url | safe }}">{% endif %}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="canonical" href="{{ url | default('/') | safe }}">
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:title" content="{% if title %}{{ title }} - {% endif %}{{ site_name }}">
     <meta property="og:site_name" content="{{ site_name }}">
-    {% if meta_description %}<meta property="og:description" content="{{ meta_description }}">{% elif site_description %}<meta property="og:description" content="{{ site_description }}">{% endif %}
+    {% if site_description %}<meta property="og:description" content="{{ site_description }}">{% endif %}
     {% if featured_image %}
-    <meta property="og:image" content="{{ featured_image | safe }}">
+    <meta property="og:image" content="{{ featured_image }}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     {% elif logo_url %}
-    <meta property="og:image" content="{{ logo_url | safe }}">
+    <meta property="og:image" content="{{ logo_url }}">
     {% endif %}
     
     <!-- Twitter -->
     <meta name="twitter:card" content="{% if featured_image or logo_url %}summary_large_image{% else %}summary{% endif %}">
     <meta name="twitter:title" content="{% if title %}{{ title }} - {% endif %}{{ site_name }}">
-    {% if meta_description %}<meta name="twitter:description" content="{{ meta_description }}">{% elif site_description %}<meta name="twitter:description" content="{{ site_description }}">{% endif %}
+    {% if site_description %}<meta name="twitter:description" content="{{ site_description }}">{% endif %}
     {% if featured_image %}
-    <meta name="twitter:image" content="{{ featured_image | safe }}">
+    <meta name="twitter:image" content="{{ featured_image }}">
     {% elif logo_url %}
-    <meta name="twitter:image" content="{{ logo_url | safe }}">
+    <meta name="twitter:image" content="{{ logo_url }}">
     {% endif %}
     
-    {% if is_blog_post %}
-    <!-- Article JSON-LD Schema -->
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "Article",
-        "headline": "{{ title | json_escape }}",
-        "description": "{{ description | default(value=meta_description) | json_escape }}",
-        "url": "{{ url | json_escape }}",
-        {% if featured_image %}"image": "{{ featured_image | json_escape }}",{% endif %}
-        "datePublished": "{{ published_at }}",
-        "author": {
-            "@type": "Organization",
-            "name": "{{ site_name | json_escape }}"
-        },
-        "publisher": {
-            "@type": "Organization",
-            "name": "{{ site_name | json_escape }}"
-        }
-    }
-    </script>
-    {% else %}
-    <!-- WebSite JSON-LD Schema -->
+    <!-- JSON-LD Schema -->
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
         "@type": "WebSite",
-        "name": "{{ site_name | json_escape }}",
-        "description": "{{ site_description | default(value='') | json_escape }}",
-        "url": "{{ url | default(value='/') | json_escape }}",
-        {% if logo_url %}"logo": "{{ logo_url | json_escape }}",{% endif %}
+        "name": "{{ site_name }}",
+        "description": "{{ site_description | default(value='') }}",
+        "url": "{{ url | default(value='/') }}",
+        {% if logo_url %}"logo": "{{ logo_url }}",{% endif %}
         "publisher": {
             "@type": "Organization",
-            "name": "{{ site_name | json_escape }}"
+            "name": "{{ site_name }}"
         }
     }
     </script>
-    {% endif %}
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -184,6 +162,7 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+        }
     </style>
 </head>
 <body>
@@ -226,9 +205,6 @@
             <div style="text-align: center; color: #8b949e; font-size: 0.875rem; margin-top: 1rem;">{{ footer_text }}</div>
             {% else %}
             <div style="text-align: center; color: #8b949e; font-size: 0.875rem; margin-top: 1rem;">&copy; 2026 {{ site_name }}. All rights reserved.</div>
-            {% endif %}
-            {% if build_timestamp %}
-            <div style="text-align: center; color: #666; font-size: 0.7rem; margin-top: 0.5rem;">Built: {{ build_timestamp }}</div>
             {% endif %}
         </div>
     </footer>

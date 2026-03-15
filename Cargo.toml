@@ -4,13 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = "0.8"
+axum = { version = "0.8", features = ["multipart"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "fs", "trace", "validate-request"] }
-leptos = "0.8"
-leptos_axum = "0.8"
-leptos_meta = "0.8"
-leptos_router = "0.8"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-native-tls", "postgres", "uuid", "json", "chrono"] }
 bcrypt = "0.19"
 minijinja = "2"
