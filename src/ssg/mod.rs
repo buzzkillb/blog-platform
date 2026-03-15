@@ -147,7 +147,7 @@ pub async fn build_site(
     // Build nav_links from pages with show_in_nav = true
     // Include homepage at position 0, then other pages sorted by sort_order
     let mut nav_links: Vec<serde_json::Value> = Vec::new();
-    
+
     // Add homepage first if show_in_nav is true
     if let Some(homepage) = pages.iter().find(|p| p.3) {
         if homepage.4 {
@@ -157,7 +157,7 @@ pub async fn build_site(
             }));
         }
     }
-    
+
     // Add other pages sorted by sort_order
     let other_pages: Vec<_> = pages.iter().filter(|p| !p.3).collect();
     for page in other_pages {
@@ -168,7 +168,7 @@ pub async fn build_site(
             }));
         }
     }
-    
+
     // Add blog link at the correct position based on blog_sort_order if homepage_type is "blog" or "both"
     if homepage_type == "blog" || homepage_type == "both" {
         let blog_link = serde_json::json!({
@@ -176,7 +176,9 @@ pub async fn build_site(
             "url": blog_path
         });
         // Insert at blog_sort_order position (convert from 1-based to 0-based)
-        let insert_pos = (blog_sort_order as usize).saturating_sub(1).min(nav_links.len());
+        let insert_pos = (blog_sort_order as usize)
+            .saturating_sub(1)
+            .min(nav_links.len());
         nav_links.insert(insert_pos, blog_link);
     }
 

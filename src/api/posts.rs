@@ -170,6 +170,7 @@ pub async fn update(
     }
 
     let title = payload.title.clone();
+    let slug = payload.slug.clone();
     let content = payload.content.clone();
     let excerpt = payload.excerpt.clone();
     let featured_image = payload.featured_image.clone();
@@ -179,11 +180,12 @@ pub async fn update(
     let result = sqlx::query_as::<_, PostRow>(
         "UPDATE posts SET 
             title = COALESCE($3, title),
-            content = COALESCE($4, content),
-            excerpt = COALESCE($5, excerpt),
-            featured_image = COALESCE($6, featured_image),
-            status = COALESCE($7, status),
-            seo = COALESCE($8, seo),
+            slug = COALESCE($4, slug),
+            content = COALESCE($5, content),
+            excerpt = COALESCE($6, excerpt),
+            featured_image = COALESCE($7, featured_image),
+            status = COALESCE($8, status),
+            seo = COALESCE($9, seo),
             updated_at = NOW()
          WHERE site_id = $1 AND id = $2
          RETURNING id, site_id, author_id, title, slug, content, excerpt, featured_image, status, published_at, created_at, updated_at, seo"
@@ -191,6 +193,7 @@ pub async fn update(
     .bind(site_id)
     .bind(id)
     .bind(title)
+    .bind(slug)
     .bind(content)
     .bind(excerpt)
     .bind(featured_image)

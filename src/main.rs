@@ -244,14 +244,18 @@ async fn run_migrations(db: &sqlx::PgPool) {
         .execute(db)
         .await
         .ok();
-    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS homepage_type VARCHAR(20) DEFAULT 'both'")
-        .execute(db)
-        .await
-        .ok();
-    sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS blog_path VARCHAR(100) DEFAULT '/blog'")
-        .execute(db)
-        .await
-        .ok();
+    sqlx::query(
+        "ALTER TABLE sites ADD COLUMN IF NOT EXISTS homepage_type VARCHAR(20) DEFAULT 'both'",
+    )
+    .execute(db)
+    .await
+    .ok();
+    sqlx::query(
+        "ALTER TABLE sites ADD COLUMN IF NOT EXISTS blog_path VARCHAR(100) DEFAULT '/blog'",
+    )
+    .execute(db)
+    .await
+    .ok();
     sqlx::query("ALTER TABLE sites ADD COLUMN IF NOT EXISTS landing_blocks JSONB DEFAULT '[]'")
         .execute(db)
         .await

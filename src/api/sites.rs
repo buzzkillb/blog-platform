@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::api::auth::{require_auth, require_site_member};
 use crate::models::ContactSubmissionRow;
+use crate::util;
 use crate::{ApiError, AppState, ContactSubmission, CreateSiteRequest, Site};
 
 pub async fn list(
@@ -85,13 +86,13 @@ pub async fn get(
         contact_phone: row.get("contact_phone"),
         contact_email: row.get("contact_email"),
         contact_address: row.get("contact_address"),
-            homepage_type: row.get("homepage_type"),
-            blog_path: row.get("blog_path"),
-            blog_sort_order: row.get("blog_sort_order"),
-            landing_blocks: row.get("landing_blocks"),
-            settings: row.get("settings"),
-            created_at: row.get("created_at"),
-        };
+        homepage_type: row.get("homepage_type"),
+        blog_path: row.get("blog_path"),
+        blog_sort_order: row.get("blog_sort_order"),
+        landing_blocks: row.get("landing_blocks"),
+        settings: row.get("settings"),
+        created_at: row.get("created_at"),
+    };
 
     Ok(Json(site))
 }
@@ -105,6 +106,22 @@ pub async fn create(
 
     if payload.name.is_empty() {
         return Err(ApiError::new("Site name is required"));
+    }
+
+    // Validate URLs to prevent XSS
+    if let Some(ref url) = payload.logo_url {
+        if !util::is_valid_url(url) {
+            return Err(ApiError::new(
+                "Invalid logo URL: javascript: and data: URLs are not allowed",
+            ));
+        }
+    }
+    if let Some(ref url) = payload.favicon_url {
+        if !util::is_valid_url(url) {
+            return Err(ApiError::new(
+                "Invalid favicon URL: javascript: and data: URLs are not allowed",
+            ));
+        }
     }
 
     let subdomain = payload.subdomain.filter(|s| !s.is_empty());
@@ -250,6 +267,22 @@ pub async fn update(
     let landing_blocks = payload.get("landing_blocks");
     let settings = payload.get("settings");
     let favicon_url = payload.get("favicon_url").and_then(|v| v.as_str());
+
+    // Validate URLs to prevent XSS
+    if let Some(url) = logo_url {
+        if !util::is_valid_url(url) {
+            return Err(ApiError::new(
+                "Invalid logo URL: javascript: and data: URLs are not allowed",
+            ));
+        }
+    }
+    if let Some(url) = favicon_url {
+        if !util::is_valid_url(url) {
+            return Err(ApiError::new(
+                "Invalid favicon URL: javascript: and data: URLs are not allowed",
+            ));
+        }
+    }
 
     let row = sqlx::query(
         "UPDATE sites SET 
