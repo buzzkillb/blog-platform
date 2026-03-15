@@ -144,18 +144,30 @@ pub async fn build_site(
     .fetch_all(db)
     .await?;
 
-    // Build nav_links from pages with show_in_nav = true (excluding homepage which is always at /)
-    // Pages are already sorted by sort_order from the SQL query
-    let nav_pages: Vec<_> = pages.iter().filter(|p| p.4 && !p.3).collect();
-    let mut nav_links: Vec<serde_json::Value> = nav_pages
-        .iter()
-        .map(|p| {
-            serde_json::json!({
-                "label": p.0,
-                "url": format!("/{}", p.1)
-            })
-        })
-        .collect();
+    // Build nav_links from pages with show_in_nav = true
+    // Include homepage at position 0, then other pages sorted by sort_order
+    let mut nav_links: Vec<serde_json::Value> = Vec::new();
+    
+    // Add homepage first if show_in_nav is true
+    if let Some(homepage) = pages.iter().find(|p| p.3) {
+        if homepage.4 {
+            nav_links.push(serde_json::json!({
+                "label": homepage.0,
+                "url": "/"
+            }));
+        }
+    }
+    
+    // Add other pages sorted by sort_order
+    let other_pages: Vec<_> = pages.iter().filter(|p| !p.3).collect();
+    for page in other_pages {
+        if page.4 {
+            nav_links.push(serde_json::json!({
+                "label": page.0,
+                "url": format!("/{}", page.1)
+            }));
+        }
+    }
     
     // Add blog link at the correct position based on blog_sort_order if homepage_type is "blog" or "both"
     if homepage_type == "blog" || homepage_type == "both" {
@@ -163,19 +175,8 @@ pub async fn build_site(
             "label": "Blog",
             "url": blog_path
         });
-        // Find first page with sort_order >= blog_sort_order - insert before it
-        let insert_pos = nav_links.iter().enumerate()
-            .find(|(_, link)| {
-                let url = link.get("url").and_then(|v| v.as_str()).unwrap_or("");
-                let page_sort = pages.iter()
-                    .find(|p| format!("/{}", p.1) == url)
-                    .map(|p| p.5)
-                    .unwrap_or(999);
-                page_sort >= blog_sort_order
-            })
-            .map(|(i, _)| i)
-            .unwrap_or(nav_links.len());
-        
+        // Insert at blog_sort_order position (convert from 1-based to 0-based)
+        let insert_pos = (blog_sort_order as usize).saturating_sub(1).min(nav_links.len());
         nav_links.insert(insert_pos, blog_link);
     }
 
