@@ -2079,6 +2079,8 @@
         let currentTemplateTab = 'select';
         let templatesList = [];
         let selectedTemplate = null;
+        let templateConfig = { colors: {}, typography: {}, hero: {}, layout: {}, advanced: {} };
+        let customizerDebounceTimer = null;
 
         function renderTemplateSelector() {
             return `
@@ -2098,6 +2100,7 @@
         function renderTemplateTabs() {
             const tabs = [
                 { id: 'select', label: 'Select', icon: 'fa-th' },
+                { id: 'visual', label: 'Visual', icon: 'fa-paint-brush' },
                 { id: 'customize', label: 'Customize', icon: 'fa-cogs' },
                 { id: 'code', label: 'Code', icon: 'fa-code' }
             ];
@@ -2119,6 +2122,8 @@
                 return `
                     <div id="templates-grid" class="grid grid-cols-3 gap-6"></div>
                 `;
+            } else if (currentTemplateTab === 'visual') {
+                return renderTemplateCustomizeView();
             } else if (currentTemplateTab === 'customize') {
                 return `
                     <div class="card p-6 rounded-lg">
@@ -2159,6 +2164,10 @@
 
         async function loadTemplates() {
             if (!currentSite) return;
+            if (currentTemplateTab === 'visual') {
+                await loadTemplateCustomizeSettings();
+                return;
+            }
             try {
                 const res = await fetch(API_BASE + '/api/sites/' + currentSite, {
                     headers: { 'Authorization': 'Bearer ' + authToken }
@@ -2252,6 +2261,432 @@
                     showToast('Failed to activate template', 'error');
                 }
             } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        }
+
+        // Visual Customizer Functions
+        function renderTemplateCustomizeView() {
+            const themeMode = templateConfig.themeMode || 'light';
+            return `
+                <div class="flex gap-6" style="height: calc(100vh - 200px);">
+                    <div class="w-1/3 overflow-y-auto pr-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-bold text-white">Customize</h2>
+                            <div class="flex gap-1 bg-gray-700 rounded p-1">
+                                <button onclick="setThemeMode('light')" class="px-3 py-1 rounded text-sm ${themeMode === 'light' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}">
+                                    <i class="fas fa-sun"></i>
+                                </button>
+                                <button onclick="setThemeMode('dark')" class="px-3 py-1 rounded text-sm ${themeMode === 'dark' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}">
+                                    <i class="fas fa-moon"></i>
+                                </button>
+                                <button onclick="setThemeMode('system')" class="px-3 py-1 rounded text-sm ${themeMode === 'system' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}">
+                                    <i class="fas fa-desktop"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="space-y-3">
+                            ${renderColorControls()}
+                            ${renderTypographyControls()}
+                            ${renderHeroControls()}
+                            ${renderLayoutControls()}
+                            ${renderAdvancedControls()}
+                        </div>
+                    </div>
+                    <div class="w-2/3 bg-white rounded-lg overflow-hidden">
+                        <iframe id="customizer-preview" class="w-full h-full border-0" sandbox="allow-same-origin"></iframe>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderColorControls() {
+            const colors = templateConfig.colors || {};
+            return `
+                <div class="collapsible-section card rounded-lg overflow-hidden">
+                    <button onclick="toggleCollapsible(this)" class="w-full flex justify-between items-center p-4 text-white hover:bg-gray-700">
+                        <span><i class="fas fa-palette w-6"></i> Colors</span>
+                        <i class="fas fa-chevron-down transition-transform"></i>
+                    </button>
+                    <div class="collapsible-content p-4 space-y-3 border-t border-gray-700">
+                        <div class="flex items-center justify-between">
+                            <label class="text-gray-400 text-sm">Primary</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" value="${colors.primary || '#3b82f6'}" 
+                                    onchange="updateCustomizerSetting('colors.primary', this.value)" 
+                                    class="w-8 h-8 rounded cursor-pointer border-0">
+                                <input type="text" value="${colors.primary || '#3b82f6'}" 
+                                    onchange="updateCustomizerSetting('colors.primary', this.value)"
+                                    class="w-20 rounded px-2 py-1 text-sm">
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <label class="text-gray-400 text-sm">Secondary</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" value="${colors.secondary || '#8b5cf6'}" 
+                                    onchange="updateCustomizerSetting('colors.secondary', this.value)" 
+                                    class="w-8 h-8 rounded cursor-pointer border-0">
+                                <input type="text" value="${colors.secondary || '#8b5cf6'}" 
+                                    onchange="updateCustomizerSetting('colors.secondary', this.value)"
+                                    class="w-20 rounded px-2 py-1 text-sm">
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <label class="text-gray-400 text-sm">Accent</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" value="${colors.accent || '#10b981'}" 
+                                    onchange="updateCustomizerSetting('colors.accent', this.value)" 
+                                    class="w-8 h-8 rounded cursor-pointer border-0">
+                                <input type="text" value="${colors.accent || '#10b981'}" 
+                                    onchange="updateCustomizerSetting('colors.accent', this.value)"
+                                    class="w-20 rounded px-2 py-1 text-sm">
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <label class="text-gray-400 text-sm">Background</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" value="${colors.background || '#ffffff'}" 
+                                    onchange="updateCustomizerSetting('colors.background', this.value)" 
+                                    class="w-8 h-8 rounded cursor-pointer border-0">
+                                <input type="text" value="${colors.background || '#ffffff'}" 
+                                    onchange="updateCustomizerSetting('colors.background', this.value)"
+                                    class="w-20 rounded px-2 py-1 text-sm">
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <label class="text-gray-400 text-sm">Text</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" value="${colors.text || '#1f2937'}" 
+                                    onchange="updateCustomizerSetting('colors.text', this.value)" 
+                                    class="w-8 h-8 rounded cursor-pointer border-0">
+                                <input type="text" value="${colors.text || '#1f2937'}" 
+                                    onchange="updateCustomizerSetting('colors.text', this.value)"
+                                    class="w-20 rounded px-2 py-1 text-sm">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderTypographyControls() {
+            const typography = templateConfig.typography || {};
+            return `
+                <div class="collapsible-section card rounded-lg overflow-hidden">
+                    <button onclick="toggleCollapsible(this)" class="w-full flex justify-between items-center p-4 text-white hover:bg-gray-700">
+                        <span><i class="fas fa-font w-6"></i> Typography</span>
+                        <i class="fas fa-chevron-down transition-transform"></i>
+                    </button>
+                    <div class="collapsible-content p-4 space-y-3 border-t border-gray-700">
+                        <div>
+                            <label class="text-gray-400 text-sm block mb-2">Heading Font</label>
+                            <select onchange="updateCustomizerSetting('typography.headingFont', this.value)" 
+                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600">
+                                <option value="system-ui" ${typography.headingFont === 'system-ui' ? 'selected' : ''}>System UI</option>
+                                <option value="Georgia, serif" ${typography.headingFont === 'Georgia, serif' ? 'selected' : ''}>Georgia</option>
+                                <option value="Times New Roman, serif" ${typography.headingFont === 'Times New Roman, serif' ? 'selected' : ''}>Times New Roman</option>
+                                <option value="Arial, sans-serif" ${typography.headingFont === 'Arial, sans-serif' ? 'selected' : ''}>Arial</option>
+                                <option value="Verdana, sans-serif" ${typography.headingFont === 'Verdana, sans-serif' ? 'selected' : ''}>Verdana</option>
+                                <option value="Trebuchet MS, sans-serif" ${typography.headingFont === 'Trebuchet MS, sans-serif' ? 'selected' : ''}>Trebuchet MS</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-gray-400 text-sm block mb-2">Body Font</label>
+                            <select onchange="updateCustomizerSetting('typography.bodyFont', this.value)" 
+                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600">
+                                <option value="system-ui, sans-serif" ${typography.bodyFont === 'system-ui, sans-serif' ? 'selected' : ''}>System UI</option>
+                                <option value="Georgia, serif" ${typography.bodyFont === 'Georgia, serif' ? 'selected' : ''}>Georgia</option>
+                                <option value="Arial, sans-serif" ${typography.bodyFont === 'Arial, sans-serif' ? 'selected' : ''}>Arial</option>
+                                <option value="Verdana, sans-serif" ${typography.bodyFont === 'Verdana, sans-serif' ? 'selected' : ''}>Verdana</option>
+                                <option value="Helvetica, Arial, sans-serif" ${typography.bodyFont === 'Helvetica, Arial, sans-serif' ? 'selected' : ''}>Helvetica</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-gray-400 text-sm block mb-2">Heading Size</label>
+                            <input type="range" min="16" max="48" value="${typography.headingSize || 32}" 
+                                onchange="updateCustomizerSetting('typography.headingSize', parseInt(this.value))"
+                                class="w-full">
+                            <span class="text-gray-400 text-sm">${typography.headingSize || 32}px</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderHeroControls() {
+            const hero = templateConfig.hero || {};
+            return `
+                <div class="collapsible-section card rounded-lg overflow-hidden">
+                    <button onclick="toggleCollapsible(this)" class="w-full flex justify-between items-center p-4 text-white hover:bg-gray-700">
+                        <span><i class="fas fa-home w-6"></i> Hero</span>
+                        <i class="fas fa-chevron-down transition-transform"></i>
+                    </button>
+                    <div class="collapsible-content p-4 space-y-3 border-t border-gray-700">
+                        <div>
+                            <label class="text-gray-400 text-sm block mb-2">Title</label>
+                            <input type="text" value="${hero.title || 'Welcome to My Blog'}" 
+                                onchange="updateCustomizerSetting('hero.title', this.value)"
+                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600" placeholder="Hero title...">
+                        </div>
+                        <div>
+                            <label class="text-gray-400 text-sm block mb-2">Subtitle</label>
+                            <textarea onchange="updateCustomizerSetting('hero.subtitle', this.value)" 
+                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600" rows="2" 
+                                placeholder="Hero subtitle...">${hero.subtitle || ''}</textarea>
+                        </div>
+                        <div>
+                            <label class="text-gray-400 text-sm block mb-2">CTA Text</label>
+                            <input type="text" value="${hero.ctaText || 'Learn More'}" 
+                                onchange="updateCustomizerSetting('hero.ctaText', this.value)"
+                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600" placeholder="Button text...">
+                        </div>
+                        <div>
+                            <label class="text-gray-400 text-sm block mb-2">CTA Link</label>
+                            <input type="text" value="${hero.ctaLink || '#'}" 
+                                onchange="updateCustomizerSetting('hero.ctaLink', this.value)"
+                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600" placeholder="/about">
+                        </div>
+                        <div>
+                            <label class="text-gray-400 text-sm block mb-2">Background</label>
+                            <select onchange="updateCustomizerSetting('hero.background', this.value)" 
+                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600">
+                                <option value="solid" ${hero.background === 'solid' ? 'selected' : ''}>Solid Color</option>
+                                <option value="gradient" ${hero.background === 'gradient' ? 'selected' : ''}>Gradient</option>
+                                <option value="image" ${hero.background === 'image' ? 'selected' : ''}>Image</option>
+                                <option value="none" ${hero.background === 'none' ? 'selected' : ''}>None</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderLayoutControls() {
+            const layout = templateConfig.layout || {};
+            return `
+                <div class="collapsible-section card rounded-lg overflow-hidden">
+                    <button onclick="toggleCollapsible(this)" class="w-full flex justify-between items-center p-4 text-white hover:bg-gray-700">
+                        <span><i class="fas fa-columns w-6"></i> Layout</span>
+                        <i class="fas fa-chevron-down transition-transform"></i>
+                    </button>
+                    <div class="collapsible-content p-4 space-y-3 border-t border-gray-700">
+                        <div>
+                            <label class="text-gray-400 text-sm block mb-2">Container Width</label>
+                            <select onchange="updateCustomizerSetting('layout.containerWidth', this.value)" 
+                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600">
+                                <option value="narrow" ${layout.containerWidth === 'narrow' ? 'selected' : ''}>Narrow (640px)</option>
+                                <option value="default" ${layout.containerWidth === 'default' ? 'selected' : ''}>Default (1024px)</option>
+                                <option value="wide" ${layout.containerWidth === 'wide' ? 'selected' : ''}>Wide (1280px)</option>
+                                <option value="full" ${layout.containerWidth === 'full' ? 'selected' : ''}>Full Width</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-gray-400 text-sm block mb-2">Sidebar Position</label>
+                            <select onchange="updateCustomizerSetting('layout.sidebarPosition', this.value)" 
+                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600">
+                                <option value="left" ${layout.sidebarPosition === 'left' ? 'selected' : ''}>Left</option>
+                                <option value="right" ${layout.sidebarPosition === 'right' ? 'selected' : ''}>Right</option>
+                                <option value="none" ${layout.sidebarPosition === 'none' ? 'selected' : ''}>No Sidebar</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <label class="text-gray-400 text-sm">Show Header</label>
+                            <input type="checkbox" ${layout.showHeader !== false ? 'checked' : ''} 
+                                onchange="updateCustomizerSetting('layout.showHeader', this.checked)">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <label class="text-gray-400 text-sm">Show Footer</label>
+                            <input type="checkbox" ${layout.showFooter !== false ? 'checked' : ''} 
+                                onchange="updateCustomizerSetting('layout.showFooter', this.checked)">
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAdvancedControls() {
+            const advanced = templateConfig.advanced || {};
+            return `
+                <div class="collapsible-section card rounded-lg overflow-hidden">
+                    <button onclick="toggleCollapsible(this)" class="w-full flex justify-between items-center p-4 text-white hover:bg-gray-700">
+                        <span><i class="fas fa-code w-6"></i> Advanced</span>
+                        <i class="fas fa-chevron-down transition-transform"></i>
+                    </button>
+                    <div class="collapsible-content p-4 space-y-3 border-t border-gray-700">
+                        <div>
+                            <label class="text-gray-400 text-sm block mb-2">Custom CSS</label>
+                            <textarea onchange="updateCustomizerSetting('advanced.customCss', this.value)" 
+                                class="w-full rounded px-3 py-2 bg-gray-700 text-white border border-gray-600 font-mono text-sm" 
+                                rows="6" placeholder="/* Add custom CSS here */">${advanced.customCss || ''}</textarea>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleCollapsible(button) {
+            const section = button.closest('.collapsible-section');
+            const content = section.querySelector('.collapsible-content');
+            const icon = button.querySelector('.fa-chevron-down');
+            content.classList.toggle('hidden');
+            icon.classList.toggle('rotate-180');
+        }
+
+        async function loadTemplateCustomizeSettings() {
+            if (!currentSite) return;
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite, {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (res.ok) {
+                    const site = await res.json();
+                    templateConfig = site.template_config || { colors: {}, typography: {}, hero: {}, layout: {}, advanced: {} };
+                    setTimeout(updatePreview, 100);
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function updateCustomizerSetting(path, value) {
+            const keys = path.split('.');
+            let obj = templateConfig;
+            for (let i = 0; i < keys.length - 1; i++) {
+                if (!obj[keys[i]]) obj[keys[i]] = {};
+                obj = obj[keys[i]];
+            }
+            obj[keys[keys.length - 1]] = value;
+            debouncedSave();
+            render();
+            setTimeout(updatePreview, 100);
+        }
+
+        function debouncedSave() {
+            if (customizerDebounceTimer) clearTimeout(customizerDebounceTimer);
+            customizerDebounceTimer = setTimeout(saveTemplateCustomizeSettings, 1000);
+        }
+
+        async function saveTemplateCustomizeSettings() {
+            if (!currentSite) return;
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite, {
+                    method: 'PUT',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify({ template_config: templateConfig })
+                });
+                if (res.ok) {
+                    showToast('Settings saved!');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function setThemeMode(mode) {
+            templateConfig.themeMode = mode;
+            debouncedSave();
+            render();
+            setTimeout(updatePreview, 100);
+        }
+
+        function generatePreviewHtml() {
+            const colors = templateConfig.colors || {};
+            const typography = templateConfig.typography || {};
+            const hero = templateConfig.hero || {};
+            const layout = templateConfig.layout || {};
+            const advanced = templateConfig.advanced || {};
+            const themeMode = templateConfig.themeMode || 'light';
+            
+            const isDark = themeMode === 'dark' || (themeMode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            
+            const bgColor = isDark ? '#1a1a1a' : (colors.background || '#ffffff');
+            const textColor = isDark ? '#e0e0e0' : (colors.text || '#1f2937');
+            const primaryColor = colors.primary || '#3b82f6';
+            const headingFont = typography.headingFont || 'system-ui';
+            const bodyFont = typography.bodyFont || 'system-ui, sans-serif';
+            const headingSize = typography.headingSize || 32;
+            
+            const containerWidths = { narrow: '640px', default: '1024px', wide: '1280px', full: '100%' };
+            const containerWidth = containerWidths[layout.containerWidth] || '1024px';
+            
+            const bgStyle = hero.background === 'gradient' 
+                ? `background: linear-gradient(135deg, ${primaryColor}, ${colors.secondary || '#8b5cf6'});`
+                : hero.background === 'solid'
+                ? `background: ${primaryColor};`
+                : hero.background === 'image'
+                ? `background: url('https://picsum.photos/1200/400') center/cover;`
+                : '';
+            
+            const customCss = advanced.customCss || '';
+            
+            return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.tailwindcss.com">
+    <style>
+        body { font-family: ${bodyFont}; background: ${bgColor}; color: ${textColor}; }
+        h1, h2, h3, h4, h5, h6 { font-family: ${headingFont}; font-size: ${headingSize}px; }
+        .btn { background: ${primaryColor}; color: white; padding: 10px 20px; border-radius: 5px; text-decoration: none; display: inline-block; }
+        .container { max-width: ${containerWidth}; margin: 0 auto; padding: 20px; }
+        .hero { padding: 60px 20px; text-align: center; ${bgStyle} color: ${hero.background !== 'none' ? 'white' : textColor}; }
+        .hero h1 { font-size: ${headingSize + 8}px; margin-bottom: 10px; }
+        ${layout.sidebarPosition === 'none' ? '.content { width: 100%; }' : '.content { width: 70%; }'}
+        ${layout.sidebarPosition !== 'none' ? '.sidebar { width: 25%; }' : ''}
+        .layout-wrapper { display: flex; gap: 30px; }
+        .card { background: ${isDark ? '#2d2d2d' : '#f9f9f9'}; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        ${customCss}
+    </style>
+</head>
+<body>
+    ${layout.showHeader !== false ? '<header style="padding: 20px; border-bottom: 1px solid ' + (isDark ? '#444' : '#eee') + ';"><div class="container"><h2 style="margin: 0;">My Blog</h2></div></header>' : ''}
+    <div class="container">
+        ${hero.background !== 'none' ? `
+        <section class="hero">
+            <h1>${hero.title || 'Welcome to My Blog'}</h1>
+            <p>${hero.subtitle || ''}</p>
+            ${hero.ctaText ? '<a href="' + (hero.ctaLink || '#') + '" class="btn">' + hero.ctaText + '</a>' : ''}
+        </section>
+        ` : ''}
+        <div class="layout-wrapper" style="margin-top: 40px;">
+            <div class="content">
+                <article class="card">
+                    <h2 style="margin-top: 0;">Sample Blog Post</h2>
+                    <p>This is a preview of how your blog will look with the current customization settings. The content here is sample text to demonstrate the typography and layout options.</p>
+                    <p>You can customize colors, fonts, hero section, and layout to match your brand.</p>
+                </article>
+                <article class="card">
+                    <h2>Another Post</h2>
+                    <p>More sample content to show the layout and styling options available in the visual customizer.</p>
+                </article>
+            </div>
+            ${layout.sidebarPosition !== 'none' ? `
+            <aside class="sidebar">
+                <div class="card">
+                    <h3>About</h3>
+                    <p>Sample sidebar content.</p>
+                </div>
+                <div class="card">
+                    <h3>Categories</h3>
+                    <ul style="padding-left: 20px;">
+                        <li>Technology</li>
+                        <li>Design</li>
+                        <li>Business</li>
+                    </ul>
+                </div>
+            </aside>
+            ` : ''}
+        </div>
+    </div>
+    ${layout.showFooter !== false ? '<footer style="padding: 40px 20px; text-align: center; border-top: 1px solid ' + (isDark ? '#444' : '#eee') + '; margin-top: 40px;"><p>&copy; 2024 My Blog</p></footer>' : ''}
+</body>
+</html>`;
+        }
+
+        function updatePreview() {
+            const iframe = document.getElementById('customizer-preview');
+            if (!iframe) return;
+            const html = generatePreviewHtml();
+            iframe.srcdoc = html;
         }
 
         // Start
