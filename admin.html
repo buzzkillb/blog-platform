@@ -31,6 +31,8 @@
         }
         .toast.error { background: #da3633; }
         .toast.success { background: #238636; }
+        .preview-frame { min-height: 500px; }
+        .preview-frame > div { min-height: 100%; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
     </style>
 </head>
@@ -563,7 +565,10 @@
             else if (currentView === 'pages') loadPages();
             else if (currentView === 'media') loadMedia();
             else if (currentView === 'contact') loadContact();
-            else if (currentView === 'templates') loadTemplates();
+            else if (currentView === 'templates') {
+                if (currentTemplateTab === 'select') loadTemplates();
+                else if (currentTemplateTab === 'customize') loadTemplateCustomize();
+            }
         }
 
         // POSTS
@@ -2098,6 +2103,11 @@
         function switchTemplateTab(tab) {
             currentTemplateTab = tab;
             render();
+            if (tab === 'customize') {
+                setTimeout(loadTemplateCustomize, 100);
+            } else if (tab === 'select') {
+                setTimeout(loadTemplates, 100);
+            }
         }
 
         function renderTemplateSelect() {
@@ -2105,7 +2115,236 @@
         }
 
         function renderTemplateCustomize() {
-            return '<div class="p-4 text-gray-400">Customize options coming soon</div>';
+            return `
+                <div class="flex gap-6 h-[calc(100vh-200px)]">
+                    <div class="w-80 flex-shrink-0 overflow-y-auto card rounded-lg p-4 space-y-6">
+                        <div>
+                            <h3 class="text-white font-medium mb-3">Theme</h3>
+                            <div class="flex gap-2">
+                                <button onclick="setTheme('light')" id="theme-light" class="flex-1 py-2 px-3 rounded border border-gray-600 text-sm hover:bg-gray-700">
+                                    <i class="fas fa-sun mr-2"></i>Light
+                                </button>
+                                <button onclick="setTheme('dark')" id="theme-dark" class="flex-1 py-2 px-3 rounded border border-gray-600 text-sm hover:bg-gray-700">
+                                    <i class="fas fa-moon mr-2"></i>Dark
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-white font-medium mb-3">Site Settings</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-gray-400 text-sm mb-1">Site Name</label>
+                                    <input type="text" id="customize-site-name" class="w-full rounded px-3 py-2 text-sm" onchange="updateTemplateConfig('site_name', this.value)">
+                                </div>
+                                <div>
+                                    <label class="block text-gray-400 text-sm mb-1">Site Description</label>
+                                    <textarea id="customize-site-desc" class="w-full rounded px-3 py-2 text-sm" rows="2" onchange="updateTemplateConfig('site_description', this.value)"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-white font-medium mb-3">Colors</h3>
+                            <div>
+                                <label class="block text-gray-400 text-sm mb-1">Accent Color</label>
+                                <div class="flex gap-2 items-center">
+                                    <input type="color" id="customize-accent-color" class="w-10 h-10 rounded cursor-pointer" oninput="document.getElementById('customize-accent-color-text').value = this.value.toUpperCase(); updateTemplateConfig('accent_color', this.value)">
+                                    <input type="text" id="customize-accent-color-text" class="flex-1 rounded px-3 py-2 text-sm uppercase" onchange="var v=this.value; if(/^#[0-9A-F]{6}$/i.test(v)){document.getElementById('customize-accent-color').value=v; updateTemplateConfig('accent_color',v)}">
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-white font-medium mb-3">Typography</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-gray-400 text-sm mb-1">Heading Font</label>
+                                    <select id="customize-font-heading" class="w-full rounded px-3 py-2 text-sm" style="font-family: var(--preview-font-head, system-ui);" onchange="this.style.setProperty('--preview-font-head', this.value); updateTemplateConfig('font_heading', this.value)">
+                                        <option value="system-ui" style="font-family: system-ui;">System UI</option>
+                                        <option value="Georgia, serif" style="font-family: Georgia, serif;">Georgia</option>
+                                        <option value="Times New Roman, serif" style="font-family: Times New Roman, serif;">Times New Roman</option>
+                                        <option value="Arial, sans-serif" style="font-family: Arial, sans-serif;">Arial</option>
+                                        <option value="Verdana, sans-serif" style="font-family: Verdana, sans-serif;">Verdana</option>
+                                        <option value="Tahoma, sans-serif" style="font-family: Tahoma, sans-serif;">Tahoma</option>
+                                        <option value="Trebuchet MS, sans-serif" style="font-family: Trebuchet MS, sans-serif;">Trebuchet MS</option>
+                                        <option value="Courier New, monospace" style="font-family: Courier New, monospace;">Courier New</option>
+                                        <option value="Impact, sans-serif" style="font-family: Impact, sans-serif;">Impact</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-gray-400 text-sm mb-1">Body Font</label>
+                                    <select id="customize-font-body" class="w-full rounded px-3 py-2 text-sm" style="font-family: var(--preview-font-body, system-ui);" onchange="this.style.setProperty('--preview-font-body', this.value); updateTemplateConfig('font_body', this.value)">
+                                        <option value="system-ui, -apple-system, sans-serif" style="font-family: system-ui, -apple-system, sans-serif;">System UI</option>
+                                        <option value="Georgia, serif" style="font-family: Georgia, serif;">Georgia</option>
+                                        <option value="Times New Roman, serif" style="font-family: Times New Roman, serif;">Times New Roman</option>
+                                        <option value="Arial, sans-serif" style="font-family: Arial, sans-serif;">Arial</option>
+                                        <option value="Verdana, sans-serif" style="font-family: Verdana, sans-serif;">Verdana</option>
+                                        <option value="Tahoma, sans-serif" style="font-family: Tahoma, sans-serif;">Tahoma</option>
+                                        <option value="Trebuchet MS, sans-serif" style="font-family: Trebuchet MS, sans-serif;">Trebuchet MS</option>
+                                        <option value="Courier New, monospace" style="font-family: Courier New, monospace;">Courier New</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-white font-medium mb-3">Hero Section</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-gray-400 text-sm mb-1">Hero Title</label>
+                                    <input type="text" id="customize-hero-title" class="w-full rounded px-3 py-2 text-sm" onchange="updateTemplateConfig('hero_title', this.value)">
+                                </div>
+                                <div>
+                                    <label class="block text-gray-400 text-sm mb-1">Hero Subtitle</label>
+                                    <input type="text" id="customize-hero-subtitle" class="w-full rounded px-3 py-2 text-sm" onchange="updateTemplateConfig('hero_subtitle', this.value)">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pt-2 border-t border-gray-700">
+                            <p class="text-xs text-gray-500" id="save-status">Changes auto-save</p>
+                        </div>
+                    </div>
+                    <div class="flex-1 card rounded-lg overflow-hidden">
+                        <div class="p-3 border-b border-gray-700 bg-gray-800">
+                            <span class="text-sm text-gray-400">Live Preview</span>
+                        </div>
+                        <div id="preview-container" class="h-full overflow-auto preview-frame"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        let customizeData = { theme: 'light', template_config: {} };
+        let debounceTimer = null;
+
+        function updateTemplateConfig(key, value) {
+            customizeData.template_config[key] = value;
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(saveTemplateConfig, 1000);
+            updatePreview();
+            document.getElementById('save-status').textContent = 'Saving...';
+        }
+
+        async function saveTemplateConfig() {
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/template-config', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                    body: JSON.stringify({ config: customizeData.template_config })
+                });
+                if (res.ok) {
+                    document.getElementById('save-status').textContent = 'Saved';
+                    showToast('Settings saved');
+                } else {
+                    document.getElementById('save-status').textContent = 'Save failed';
+                    showToast('Failed to save', 'error');
+                }
+            } catch (err) {
+                document.getElementById('save-status').textContent = 'Error';
+                showToast('Error saving', 'error');
+            }
+        }
+
+        async function setTheme(theme) {
+            customizeData.theme = theme;
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite + '/theme', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                    body: JSON.stringify({ theme })
+                });
+                if (res.ok) {
+                    document.getElementById('theme-light').classList.toggle('bg-gray-700', theme !== 'light');
+                    document.getElementById('theme-dark').classList.toggle('bg-gray-700', theme !== 'dark');
+                    updatePreview();
+                    showToast('Theme updated');
+                }
+            } catch (err) { showToast('Error', 'error'); }
+        }
+
+        function updatePreview() {
+            const container = document.getElementById('preview-container');
+            if (!container) return;
+            const cfg = customizeData.template_config;
+            const accent = cfg.accent_color || '#2ea44f';
+            const fontHead = cfg.font_heading || 'system-ui';
+            const fontBody = cfg.font_body || 'system-ui, -apple-system, sans-serif';
+            const isDark = customizeData.theme === 'dark';
+            const bg = isDark ? '#0d1117' : '#ffffff';
+            const text = isDark ? '#c9d1d9' : '#333333';
+            const cardBg = isDark ? '#161b22' : '#ffffff';
+            const navBg = isDark ? '#161b22' : '#24292f';
+            const border = isDark ? '#30363d' : '#d0d7de';
+
+            container.innerHTML = `
+                <div style="font-family: ${fontBody}; background: ${bg}; color: ${text}; min-height: 100%;">
+                    <header style="background: ${navBg}; padding: 1rem 2rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 1.25rem; font-weight: bold; color: white; font-family: ${fontHead};">${cfg.site_name || 'My Blog'}</span>
+                            <nav style="display: flex; gap: 1rem;">
+                                <a href="#" style="color: white;">Home</a>
+                                <a href="#" style="color: white;">Blog</a>
+                                <a href="#" style="color: white;">About</a>
+                            </nav>
+                        </div>
+                    </header>
+                    <section style="padding: 3rem 2rem; text-align: center; background: linear-gradient(135deg, ${accent}22, ${accent}11);">
+                        <h1 style="font-family: ${fontHead}; font-size: 2.5rem; margin-bottom: 0.5rem; color: ${text};">${cfg.hero_title || 'Welcome'}</h1>
+                        <p style="font-size: 1.125rem; color: ${isDark ? '#8b949e' : '#666'};">${cfg.hero_subtitle || 'A modern blog platform'}</p>
+                        <button style="margin-top: 1.5rem; background: ${accent}; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; cursor: pointer;">Get Started</button>
+                    </section>
+                    <main style="max-width: 1200px; margin: 0 auto; padding: 2rem;">
+                        <h2 style="font-family: ${fontHead}; margin-bottom: 1.5rem; color: ${text};">Latest Posts</h2>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
+                            ${[1,2,3].map(i => `
+                                <article style="background: ${cardBg}; border: 1px solid ${border}; border-radius: 8px; overflow: hidden;">
+                                    <div style="height: 180px; background: ${isDark ? '#21262d' : '#f6f8fa'}; display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-image" style="font-size: 3rem; color: ${isDark ? '#484f58' : '#d0d7de'};"></i>
+                                    </div>
+                                    <div style="padding: 1rem;">
+                                        <h3 style="font-family: ${fontHead}; margin-bottom: 0.5rem; color: ${text};">Blog Post Title ${i}</h3>
+                                        <p style="color: ${isDark ? '#8b949e' : '#666'}; font-size: 0.875rem;">A brief excerpt of the blog post content goes here...</p>
+                                    </div>
+                                </article>
+                            `).join('')}
+                        </div>
+                    </main>
+                    <footer style="background: ${navBg}; padding: 2rem; text-align: center; color: ${isDark ? '#8b949e' : '#666'};">
+                        <p>&copy; ${new Date().getFullYear()} ${cfg.site_name || 'My Blog'}. All rights reserved.</p>
+                    </footer>
+                </div>
+            `;
+        }
+
+        async function loadTemplateCustomize() {
+            if (currentTemplateTab !== 'customize') return;
+            try {
+                const res = await fetch(API_BASE + '/api/sites/' + currentSite, {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (res.ok) {
+                    const site = await res.json();
+                    customizeData.theme = site.theme || 'light';
+                    customizeData.template_config = site.template_config || {};
+                    
+                    document.getElementById('customize-site-name').value = site.name || '';
+                    document.getElementById('customize-site-desc').value = site.description || '';
+                    
+                    const cfg = customizeData.template_config;
+                    document.getElementById('customize-accent-color').value = cfg.accent_color || '#2ea44f';
+                    document.getElementById('customize-accent-color-text').value = (cfg.accent_color || '#2ea44f').toUpperCase();
+                    document.getElementById('customize-font-heading').value = cfg.font_heading || 'system-ui';
+                    document.getElementById('customize-font-body').value = cfg.font_body || 'system-ui, -apple-system, sans-serif';
+                    document.getElementById('customize-hero-title').value = cfg.hero_title || '';
+                    document.getElementById('customize-hero-subtitle').value = cfg.hero_subtitle || '';
+                    
+                    document.getElementById('theme-light').classList.toggle('bg-gray-700', customizeData.theme !== 'light');
+                    document.getElementById('theme-dark').classList.toggle('bg-gray-700', customizeData.theme !== 'dark');
+                    
+                    updatePreview();
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function updateAccentColorText(value) {
+            document.getElementById('customize-accent-color-text').value = value.toUpperCase();
         }
 
         function renderTemplateCode() {
