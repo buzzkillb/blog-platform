@@ -304,6 +304,11 @@ pub async fn build_site(
     }
 
     let mut env = Environment::new();
+    #[cfg(debug_assertions)]
+    {
+        use minijinja::Environment;
+        // Can't set auto_escape at runtime, but we can control template content
+    }
     let mut template_base: Option<String> = None;
     let mut template_page: Option<String> = None;
     let mut template_index: Option<String> = None;
@@ -341,6 +346,7 @@ pub async fn build_site(
                             }
                         }
                     } else {
+                        // Single full-page template - use for all page types
                         let processed = inject_theme_vars(&html_content, &theme_css, &theme);
                         template_base = Some(processed.clone());
                         template_page = Some(processed.clone());
